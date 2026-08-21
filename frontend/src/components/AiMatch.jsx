@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Sparkles, Loader2, Check, Target, DollarSign, TrendingUp, ArrowRight, ScanSearch } from 'lucide-react';
+import { Sparkles, Target, DollarSign, TrendingUp, ArrowRight, ScanSearch } from 'lucide-react';
 import { useLanguage } from '@/i18n';
+import { streamPost } from '@/lib/sse';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -13,28 +13,40 @@ export default function AiMatch() {
   const [track, setTrack] = useState('talent');
   const [text, setText] = useState('');
   const [phase, setPhase] = useState('idle');
-  const [stepIdx, setStepIdx] = useState(0);
+  const [feed, setFeed] = useState('');
   const [result, setResult] = useState(null);
+  const feedRef = useRef(null);
+
+  useEffect(() => {
+    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+  }, [feed]);
 
   const analyze = async () => {
     if (!text.trim() || phase === 'running') return;
     setPhase('running');
-    setStepIdx(0);
+    setFeed('');
     setResult(null);
-    const timer = setInterval(() => setStepIdx((s) => Math.min(s + 1, a.steps.length - 1)), 1100);
+    let finalResult = null;
+    let failed = false;
     try {
-      const res = await axios.post(
-        `${API}/ai-match`,
+      await streamPost(
+        `${API}/ai-match/stream`,
         { profile_text: text, track, language: lang },
-        { timeout: 90000 }
+        (ev) => {
+          if (ev.type === 'token') setFeed((f) => f + ev.content);
+          else if (ev.type === 'done') finalResult = ev.result;
+          else if (ev.type === 'error') failed = true;
+        }
       );
-      setResult(res.data);
-      setPhase('done');
     } catch {
+      failed = true;
+    }
+    if (failed || !finalResult) {
       setPhase('error');
       toast.error(a.error);
-    } finally {
-      clearInterval(timer);
+    } else {
+      setResult(finalResult);
+      setPhase('done');
     }
   };
 
@@ -120,17 +132,8 @@ export default function AiMatch() {
                 data-testid="ai-analyze-button"
                 className="group w-full inline-flex items-center justify-center gap-2.5 rounded-lg bg-cyan-500 px-6 py-4 text-sm font-semibold text-[#07090E] hover:bg-cyan-400 hover:shadow-[0_0_35px_rgba(6,182,212,0.4)] disabled:opacity-50 transition-all duration-300"
               >
-                {phase === 'running' ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    {a.analyzing}
-                  </>
-                ) : (
-                  <>
-                    <ScanSearch size={16} />
-                    {a.analyze}
-                  </>
-                )}
+                <ScanSearch size={16} />
+                {phase === 'running' ? a.analyzing : a.analyze}
               </button>
             </div>
           </motion.div>
@@ -140,7 +143,7 @@ export default function AiMatch() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.8, ease: 'easeOut', delay: 0.1 }}
-            className="rounded-2xl border border-white/[0.08] bg-[#111620]/60 backdrop-blur p-6 sm:p-8 min-h-[420px] flex flex-col"
+            className="rounded-2xl border border-white/[0.08] bg-[#111620]/60 backdrop-blur min-h-[420px] flex flex-col overflow-hidden"
             data-testid="ai-results"
           >
             <AnimatePresence mode="wait">
@@ -150,7 +153,7 @@ export default function AiMatch() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-1 flex flex-col items-center justify-center text-center gap-4"
+                  className="flex-1 flex flex-col items-center justify-center text-center gap-4 p-8"
                 >
                   <span className="w-14 h-14 rounded-2xl border border-cyan-400/30 bg-cyan-400/[0.06] flex items-center justify-center">
                     <Sparkles size={22} className="text-cyan-400" />
@@ -165,28 +168,21 @@ export default function AiMatch() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-1 flex flex-col justify-center gap-5 max-w-sm mx-auto w-full"
-                  data-testid="ai-analyzing-steps"
+                  className="flex-1 flex flex-col"
+                  data-testid="ai-live-feed"
                 >
-                  {a.steps.map((s, i) => (
-                    <motion.div
-                      key={s}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: i <= stepIdx ? 1 : 0.3, x: 0 }}
-                      className="flex items-center gap-3 font-mono-tech text-xs"
-                    >
-                      {i < stepIdx ? (
-                        <span className="w-5 h-5 rounded-full bg-cyan-400/15 border border-cyan-400/50 flex items-center justify-center">
-                          <Check size={11} className="text-cyan-400" />
-                        </span>
-                      ) : i === stepIdx ? (
-                        <Loader2 size={16} className="animate-spin text-cyan-400" />
-                      ) : (
-                        <span className="w-5 h-5 rounded-full border border-white/10" />
-                      )}
-                      <span className={i <= stepIdx ? 'text-slate-200' : 'text-slate-600'}>{s}</span>
-                    </motion.div>
-                  ))}
+                  <div className="flex items-center gap-2 border-b border-white/[0.07] px-5 py-3 bg-[#0B0E14]/80">
+                    <span className="pulse-dot w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span className="font-mono-tech text-[10px] tracking-[0.25em] uppercase text-cyan-400">
+                      {a.liveFeed}
+                    </span>
+                  </div>
+                  <div ref={feedRef} className="flex-1 overflow-y-auto p-5 max-h-[420px]">
+                    <pre className="font-mono-tech text-xs leading-relaxed text-emerald-300/90 whitespace-pre-wrap break-words">
+                      {feed}
+                      <span className="inline-block w-2 h-3.5 ml-0.5 bg-cyan-400 animate-pulse align-middle" />
+                    </pre>
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div
@@ -195,7 +191,7 @@ export default function AiMatch() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5 }}
-                  className="flex-1 flex flex-col gap-6"
+                  className="flex-1 flex flex-col gap-6 p-6 sm:p-8"
                 >
                   <div className="flex items-center gap-6">
                     <div className="relative w-28 h-28 shrink-0">

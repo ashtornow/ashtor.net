@@ -7,38 +7,46 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Content: Bilingual (ES / EN toggle)
 - Scope: Full landing page (hero + sections)
 - Style: Dark, tech-focused, award-worthy (framer-motion + lenis)
-- Hero functionality: Lead capture form saving to MongoDB
-- Hero copy (user-provided): "Your next remote tech role starts here." / "Ashtor.net bridges the gap between skilled IT professionals and forward-thinking companies looking for remote talent." / CTAs "Find your dream role" + "Hire top talent" / globe-with-connections visual
-- Social connect: LinkedIn demo-simulated (modal + animated verification, saved to DB)
-- AI: default choice → AI Match Engine (OpenAI gpt-5.4 via Emergent LLM key)
+- Hero: lead capture form saving to MongoDB; user-provided copy + globe visual
+- Social connect: LinkedIn (demo first, then real OAuth scaffolding — keys pending from user)
+- AI: AI Match Engine + AI Chat Assistant (OpenAI gpt-5.4 via Emergent LLM key)
+- Admin: private JWT-protected dashboard
+- AI output: live SSE token streaming (terminal-style feed)
 
 ## Architecture
-- Backend: FastAPI (`/app/backend/server.py`) on 0.0.0.0:8001, MongoDB via MONGO_URL
-- Frontend: React 19 + Tailwind + framer-motion + lenis (`/app/frontend/src/`)
+- Backend: FastAPI (`/app/backend/server.py`), MongoDB (motor), SSE StreamingResponse
+- Frontend: React 19 + Tailwind + framer-motion + lenis; routes `/` (landing) and `/admin`
 - LLM: emergentintegrations LlmChat, openai/gpt-5.4, EMERGENT_LLM_KEY in backend/.env
+- Auth: bcrypt + PyJWT httpOnly cookies; admin seeded idempotently from env; brute-force lockout (5 attempts / 15 min)
+- LinkedIn OIDC: authlib + itsdangerous transaction cookies; upsert keyed by `sub`; no tokens stored
 
-## Implemented (2026-08-21)
-- Kinetic hero: masked line-by-line reveal, interactive canvas globe (Fibonacci sphere, connection arcs, pings, mouse parallax), live metrics grid, badge "CONNECT. BUILD. REMOTE."
-- Tactical glass navbar with live latency pulse, ES/EN toggle (animated pill), CTAs
-- Social connect: ConnectSocial card in hero → LinkedIn modal → animated verification steps → POST /api/social-connect → verified badge persisted (localStorage)
-- AI Match Engine section: track toggle (talent/company), profile input, animated analysis steps, POST /api/ai-match → fit score ring, suggested roles, USD salary band, skills gap, next step (bilingual output)
-- Manifesto chapters (numbered 01–03, asymmetric grid), specializations bento (3 domains), dual pathway tabs (talent/company), editorial marquee, terminal-style lead form (POST /api/leads), cinematic footer with watermark
-- Backend endpoints: GET /api/, POST+GET /api/leads, POST+GET /api/social-connect, POST /api/ai-match
+## Implemented
+### 2026-08-21 (v1)
+- Kinetic hero (masked line reveal, canvas globe with parallax, metrics), navbar with ES/EN toggle, manifesto chapters, specializations bento, dual pathway tabs, marquee, terminal lead form, footer
+- LinkedIn demo connect (modal + simulated verification, saved to social_connections)
+- AI Match Engine (structured JSON analysis)
+
+### 2026-08-21 (v2)
+- Real LinkedIn OIDC flow: /api/auth/linkedin/start|callback|me|logout + status endpoint; auto-activates when LINKEDIN_CLIENT_ID/SECRET set; demo mode fallback otherwise
+- AI Chat Assistant: floating widget, SSE streaming replies, MongoDB-persisted history per browser session
+- Admin Command Center at /admin: JWT login, tabs for Leads / LinkedIn connections / OIDC verified profiles, protected /api/admin/* endpoints
+- Live AI streaming: /api/ai-match/stream renders raw model tokens in a terminal feed, then structured report
 
 ## Verified
-- curl: leads, social-connect, ai-match all return valid responses (AI returns structured JSON, score 91-92 on test profile)
-- Screenshots: hero EN/ES, LinkedIn modal flow (form → verifying → success → hero badge), AI section full analysis flow
+- curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
+- Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
 
 ## Personas
 - Senior developer / cybersecurity specialist seeking verified remote roles
-- Founder / hiring manager at scaling tech company needing vetted talent fast
+- Founder / hiring manager at scaling tech company
+- Admin (site owner) reviewing intake signals
 
 ## Backlog
-- P1: Real LinkedIn OAuth (needs user LinkedIn app credentials)
-- P1: AI chat assistant floating widget
-- P2: Leads/social connections admin dashboard
-- P2: GitHub / X social connect providers
-- P2: Streaming SSE for AI match (token-by-token UI)
+- P0: User provides LinkedIn Client ID/Secret → real OAuth activates (register redirect URI: https://remote-connect-59.preview.emergentagent.com/api/auth/linkedin/callback)
+- P1: Refresh-token endpoint wiring on frontend (access token is 15 min)
+- P1: GitHub / X connect providers
+- P2: Lead status pipeline (contacted/matched/hired) in admin
+- P2: Email notifications on new lead (Resend)
 
 ## Test Credentials
-No auth implemented. Test data seeded via curl (lead: test@ashtor.net, LinkedIn profile: alexvance).
+See /app/memory/test_credentials.md — admin: admin@ashtor.net / AshtorAdmin#2026

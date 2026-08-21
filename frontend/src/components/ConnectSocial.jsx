@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Linkedin, BadgeCheck, X, Loader2, Check, ShieldCheck } from 'lucide-react';
+import { Linkedin, BadgeCheck, X, Loader2, Check, ShieldCheck, LogOut } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -12,6 +12,8 @@ export default function ConnectSocial() {
   const { t } = useLanguage();
   const c = t.connect;
   const [open, setOpen] = useState(false);
+  const [oauthOn, setOauthOn] = useState(false);
+  const [realProfile, setRealProfile] = useState(null);
   const [profile, setProfile] = useState(null);
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
@@ -19,13 +21,24 @@ export default function ConnectSocial() {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
+    axios.get(`${API}/auth/linkedin/status`).then((r) => setOauthOn(r.data.configured)).catch(() => {});
+    fetch(`${API}/auth/linkedin/me`, { credentials: 'include' })
+      .then(async (r) => {
+        if (r.ok) setRealProfile(await r.json());
+      })
+      .catch(() => {});
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('linkedin') === 'connected') {
+      toast.success(c.success);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     const saved = localStorage.getItem(LS_KEY);
     if (saved) {
       try {
         setProfile(JSON.parse(saved));
       } catch {}
     }
-  }, []);
+  }, [c.success]);
 
   const startVerify = (e) => {
     e.preventDefault();
@@ -68,6 +81,23 @@ export default function ConnectSocial() {
     }, 300);
   };
 
+  const connect = () => {
+    if (oauthOn) {
+      window.location.assign(`${API}/auth/linkedin/start`);
+    } else {
+      setOpen(true);
+    }
+  };
+
+  const disconnectReal = async () => {
+    try {
+      await fetch(`${API}/auth/linkedin/logout`, { method: 'POST', credentials: 'include' });
+    } catch {}
+    setRealProfile(null);
+  };
+
+  const connected = realProfile || profile;
+
   return (
     <>
       <div
@@ -75,28 +105,45 @@ export default function ConnectSocial() {
         data-testid="connect-social-card"
       >
         <div className="flex items-center gap-3.5 flex-1 min-w-0">
-          <span className="shrink-0 w-10 h-10 rounded-lg bg-[#0A66C2]/15 border border-[#0A66C2]/40 flex items-center justify-center">
-            <Linkedin size={17} className="text-[#4ea3f1]" />
-          </span>
+          {realProfile?.picture ? (
+            <img src={realProfile.picture} alt="" className="shrink-0 w-10 h-10 rounded-lg border border-emerald-500/40 object-cover" />
+          ) : (
+            <span className="shrink-0 w-10 h-10 rounded-lg bg-[#0A66C2]/15 border border-[#0A66C2]/40 flex items-center justify-center">
+              <Linkedin size={17} className="text-[#4ea3f1]" />
+            </span>
+          )}
           <div className="min-w-0">
             <p className="font-mono-tech text-[9px] tracking-[0.25em] uppercase text-cyan-400/80 mb-0.5">
               {c.kicker}
             </p>
-            <p className="text-sm font-semibold text-slate-100 truncate">{c.title}</p>
-            <p className="text-xs text-slate-500 leading-snug mt-0.5">{c.sub}</p>
+            <p className="text-sm font-semibold text-slate-100 truncate">
+              {realProfile ? realProfile.name || c.title : c.title}
+            </p>
+            <p className="text-xs text-slate-500 leading-snug mt-0.5">
+              {realProfile ? realProfile.email || c.connectedAs : c.sub}
+            </p>
           </div>
         </div>
-        {profile ? (
-          <span
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300"
-            data-testid="connect-verified-badge"
-          >
-            <BadgeCheck size={14} />
-            {c.connected}
+        {connected ? (
+          <span className="shrink-0 inline-flex items-center gap-2" data-testid="connect-verified-badge">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300">
+              <BadgeCheck size={14} />
+              {c.connected}
+            </span>
+            {realProfile && (
+              <button
+                onClick={disconnectReal}
+                data-testid="connect-disconnect-button"
+                className="text-slate-500 hover:text-red-300 transition-colors"
+                title={c.disconnect}
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </span>
         ) : (
           <button
-            onClick={() => setOpen(true)}
+            onClick={connect}
             data-testid="connect-linkedin-button"
             className="shrink-0 inline-flex items-center gap-2 rounded-full bg-[#0A66C2] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#0d76dd] hover:shadow-[0_0_22px_rgba(10,102,194,0.45)] transition-all duration-300"
           >

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import "@/App.css";
 import Lenis from "lenis";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { LanguageProvider } from "@/i18n";
 import Navbar from "@/components/Navbar";
@@ -12,6 +13,25 @@ import Pathways from "@/components/Pathways";
 import AiMatch from "@/components/AiMatch";
 import LeadForm from "@/components/LeadForm";
 import Footer from "@/components/Footer";
+import ChatWidget from "@/components/ChatWidget";
+import Admin from "@/pages/Admin";
+
+const Landing = () => (
+  <>
+    <Navbar />
+    <main>
+      <Hero />
+      <Marquee />
+      <Manifesto />
+      <Specializations />
+      <Pathways />
+      <AiMatch />
+      <LeadForm />
+    </main>
+    <Footer />
+    <ChatWidget />
+  </>
+);
 
 function App() {
   useEffect(() => {
@@ -31,17 +51,12 @@ function App() {
   return (
     <LanguageProvider>
       <div className="noise-overlay min-h-screen bg-[#07090E] text-slate-100 overflow-x-hidden">
-        <Navbar />
-        <main>
-          <Hero />
-          <Marquee />
-          <Manifesto />
-          <Specializations />
-          <Pathways />
-          <AiMatch />
-          <LeadForm />
-        </main>
-        <Footer />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/admin" element={<Admin />} />
+          </Routes>
+        </BrowserRouter>
         <Toaster
           theme="dark"
           position="bottom-right"
