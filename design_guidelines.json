@@ -1,0 +1,313 @@
+{
+  "brand": {
+    "name": "ashtor.net",
+    "tagline_en": "Connect. Build. Remote.",
+    "tagline_es": "Conecta. Construye. Remoto.",
+    "value_proposition_en": "The frontier platform connecting elite software developers and cybersecurity architects with high-caliber global engineering teams.",
+    "value_proposition_es": "La plataforma de vanguardia que conecta a desarrolladores de software y especialistas en ciberseguridad con equipos de ingeniería globales de alto calibre.",
+    "archetype": "THE_PERFORMANCE_PRO_TACTICAL_CYBER",
+    "emotional_tone": "High-agency, uncompromising, precise, dark cinematic, global velocity",
+    "target_audiences": [
+      "Senior Developers & Cybersecurity Architects seeking verified tier-1 remote roles",
+      "Fast-scaling tech companies, Series A-D scaleups, and enterprise tech looking to hire vetted global talent within 72 hours"
+    ]
+  },
+  "typography": {
+    "pairing_archetype": "The Editorial Future / Tech Precision (Outfit / Cabinet Display + IBM Plex Mono / JetBrains Mono)",
+    "rules": {
+      "banned_fonts": ["Inter for headings", "Roboto", "Open Sans", "Lato", "Space Grotesk"],
+      "font_family_heading": "Outfit, 'Cabinet Grotesk', -apple-system, sans-serif",
+      "font_family_mono": "'IBM Plex Mono', 'JetBrains Mono', monospace",
+      "font_family_body": "'Plus Jakarta Sans', -apple-system, sans-serif"
+    },
+    "scale_hierarchy": {
+      "h1_hero": "text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05]",
+      "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-tight",
+      "h3_subsection": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "h4_card_title": "text-lg sm:text-xl font-medium",
+      "body_lg": "text-lg text-neutral-300 leading-relaxed",
+      "body_base": "text-base text-neutral-400 leading-relaxed",
+      "body_sm": "text-sm text-neutral-400",
+      "caption_mono": "text-xs font-mono tracking-[0.2em] uppercase text-emerald-400"
+    }
+  },
+  "colors": {
+    "theme_mode": "DARK_ONLY_CINEMATIC",
+    "palette": {
+      "void_black": "#07090E",
+      "surface_base": "#0B0E14",
+      "surface_elevated": "#111620",
+      "surface_card": "#161D2B",
+      "surface_glass": "rgba(17, 22, 32, 0.75)",
+      "border_subtle": "rgba(255, 255, 255, 0.08)",
+      "border_active": "rgba(16, 185, 129, 0.4)",
+      "accent_emerald": "#10B981",
+      "accent_emerald_glow": "rgba(16, 185, 129, 0.25)",
+      "accent_cyan": "#06B6D4",
+      "accent_amber_cyber": "#F59E0B",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "text_muted": "#64748B"
+    },
+    "css_variables": {
+      "--background": "222 47% 4%",
+      "--foreground": "210 40% 98%",
+      "--card": "222 47% 7%",
+      "--card-foreground": "210 40% 98%",
+      "--popover": "222 47% 6%",
+      "--popover-foreground": "210 40% 98%",
+      "--primary": "160 84% 39%",
+      "--primary-foreground": "222 47% 4%",
+      "--secondary": "217 33% 17%",
+      "--secondary-foreground": "210 40% 98%",
+      "--muted": "217 33% 14%",
+      "--muted-foreground": "215 20% 65%",
+      "--accent": "188 94% 43%",
+      "--accent-foreground": "222 47% 4%",
+      "--destructive": "0 84% 60%",
+      "--destructive-foreground": "210 40% 98%",
+      "--border": "217 33% 15%",
+      "--input": "217 33% 15%",
+      "--ring": "160 84% 39%",
+      "--radius": "0.75rem"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing (2-3x standard), Asymmetrical Tetris/Bento grids, Tactical 1px borders with inner glow",
+    "section_padding": "py-20 sm:py-28 lg:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto",
+    "container_max_width": "max-w-7xl",
+    "grid_modes": {
+      "manifesto_chapters": "grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch",
+      "roles_bento": "grid grid-cols-1 md:grid-cols-3 gap-6",
+      "live_network_stats": "grid grid-cols-2 md:grid-cols-4 gap-4"
+    }
+  },
+  "motion_and_interaction": {
+    "engine": "framer-motion + lenis smooth scroll",
+    "hero_masked_reveal": {
+      "concept": "Staggered line-by-line kinetic mask with clip-path/overflow-hidden",
+      "duration": 0.85,
+      "ease": [0.16, 1, 0.3, 1],
+      "delay_stagger": 0.15
+    },
+    "scroll_reveal": {
+      "threshold": 0.2,
+      "initial": { "opacity": 0, "y": 30 },
+      "whileInView": { "opacity": 1, "y": 0 },
+      "transition": { "duration": 0.7, "ease": "easeOut" }
+    },
+    "interactive_elements": {
+      "hover_glow": "hover:shadow-[0_0_25px_rgba(16,185,129,0.25)] hover:border-emerald-500/40 transition-all duration-300",
+      "magnetic_button": "Pill / Tactical beveled corners with subtle cursor tracking highlight"
+    }
+  },
+  "section_blueprints": [
+    {
+      "id": "header",
+      "name": "Tactical Floating Glass Navigation",
+      "type": "fixed_header",
+      "features": [
+        "Brand logo with pulsing live latency indicator (e.g. '● 24ms Live Mesh')",
+        "Desktop Nav items: Manifesto, Talents, For Companies, Security Protocol, Contact",
+        "Language switch toggle [ES / EN] with animated pill indicator",
+        "Dual Quick CTA button: 'Apply as Talent' / 'Hire Engineers'"
+      ],
+      "style": "backdrop-blur-xl bg-[#07090E]/80 border-b border-white/10 z-50 sticky top-0"
+    },
+    {
+      "id": "hero",
+      "name": "Kinetic Hero with Line-by-Line Reveal & Tactical HUD",
+      "type": "hero_section",
+      "badge": "SYS_V2.6 // GLOBAL TALENT ROUTING PROTOCOL",
+      "headline_line_1_en": "CONNECT.",
+      "headline_line_2_en": "BUILD.",
+      "headline_line_3_en": "REMOTE.",
+      "headline_line_1_es": "CONECTA.",
+      "headline_line_2_es": "CONSTRUYE.",
+      "headline_line_3_es": "REMOTO.",
+      "subheadline_en": "Zero geographic friction. Direct pipeline linking verified Software Developers & Cybersecurity Specialists with hyper-growth global engineering teams.",
+      "subheadline_es": "Cero fricción geográfica. Conexión directa entre desarrolladores y especialistas en ciberseguridad con equipos de ingeniería globales de alto impacto.",
+      "cta_primary_en": "Find Remote Roles",
+      "cta_primary_es": "Encontrar Empleo",
+      "cta_secondary_en": "Hire Vetted Talent",
+      "cta_secondary_es": "Contratar Talento",
+      "visual_centerpiece": "Subtle 3D/Canvas Interactive Matrix Nodes (Cyber Radar + Live Ping Feed)",
+      "live_metrics": [
+        { "label_en": "Active Tech Roles", "label_es": "Vacantes Activas", "value": "1,420+", "indicator": "+18% this week" },
+        { "label_en": "Avg. Match Latency", "label_es": "Tiempo de Match", "value": "72h", "indicator": "Vetted Tier-1" },
+        { "label_en": "Global Node Spread", "label_es": "Presencia Global", "value": "48 Countries", "indicator": "100% Remote" },
+        { "label_en": "Retention Rate", "label_es": "Tasa de Retención", "value": "96.4%", "indicator": "Top 3% Talent" }
+      ]
+    },
+    {
+      "id": "editorial_marquee",
+      "name": "Slow Kinetic Editorial Ribbon",
+      "type": "marquee_stream",
+      "description": "Slow, weighted drift with high-status tech stack & global hubs (Rust, Go, Kubernetes, Zero-Trust, Smart Contracts, DevSecOps, Python AI, Distributed Systems)",
+      "speed": 35,
+      "style": "border-y border-white/5 py-4 bg-[#0B0E14] text-neutral-400 text-xs font-mono tracking-widest uppercase"
+    },
+    {
+      "id": "manifesto_chapters",
+      "name": "Numbered Manifesto Chapters (The Ashtor Creed)",
+      "type": "manifesto_grid",
+      "chapters": [
+        {
+          "number": "01",
+          "tag_en": "THE DECENTRALIZED WORKFORCE",
+          "tag_es": "FUERZA DE TRABAJO DESCENTRALIZADA",
+          "title_en": "Border-Blind Engineering Prowess",
+          "title_es": "Ingeniería de Élite Sin Fronteras",
+          "body_en": "Great code and unbreakable security architecture do not recognize city limits. We source the top 3% software engineers and cybersecurity defenders globally.",
+          "body_es": "El código de alto rendimiento y la arquitectura de seguridad no entienden de fronteras. Conectamos al 3% superior de programadores y especialistas en ciberseguridad."
+        },
+        {
+          "number": "02",
+          "tag_en": "RIGID VETTING ENGINE",
+          "tag_es": "MOTOR DE EVALUACIÓN ESTRICTO",
+          "title_en": "Live System Design & Penetration Testing",
+          "title_es": "Diseño de Sistemas en Vivo y Pentesting",
+          "body_en": "No resume keyword bingo. Every talent passes blind algorithmic challenges, live system architecture reviews, and zero-day threat defense simulations.",
+          "body_es": "Sin trucos de palabras clave en CVs. Cada candidato pasa desafíos algorítmicos a ciegas, diseño de arquitectura y simulaciones de defensa contra amenazas zero-day."
+        },
+        {
+          "number": "03",
+          "tag_en": "HIGH-VELOCITY MATCHING",
+          "tag_es": "CONTRATACIÓN DE ALTA VELOCIDAD",
+          "title_en": "From Intake to First Commit in 72h",
+          "title_es": "De la Solicitud al Primer Commit en 72h",
+          "body_en": "Traditional tech recruiting takes 45 days of wasted interviews. Ashtor delivers pre-evaluated candidates ready to execute within 3 business days.",
+          "body_es": "La selección tradicional toma 45 días de entrevistas infructuosas. Ashtor entrega candidatos listos para producir en menos de 72 horas."
+        }
+      ]
+    },
+    {
+      "id": "specializations_radar",
+      "name": "Specializations & Dual Track Experience",
+      "type": "bento_domains",
+      "domains": [
+        {
+          "title_en": "Cybersecurity & InfoSec Operations",
+          "title_es": "Ciberseguridad y Operaciones InfoSec",
+          "roles": ["SOC Lead / Threat Hunter", "AppSec & Penetration Tester", "Cloud Security Architect (AWS/GCP)", "DevSecOps Pipeline Engineer", "Zero-Trust & Identity Specialist"],
+          "badge": "CRITICAL PROTOCOL",
+          "accent": "emerald"
+        },
+        {
+          "title_en": "Full-Stack & Distributed Systems",
+          "title_es": "Full-Stack y Sistemas Distribuidos",
+          "roles": ["Senior Backend (Go / Rust / Node / Python)", "Frontend Architects (React, Next, WebGL)", "Cloud Infrastructure & SRE (K8s / Terraform)", "Distributed Database Engineers", "AI / ML Platform Developers"],
+          "badge": "HIGH VELOCITY",
+          "accent": "cyan"
+        },
+        {
+          "title_en": "Engineering Leadership & Scale",
+          "title_es": "Liderazgo de Ingeniería y Escalamiento",
+          "roles": ["Fractional & Full-time CTO", "Staff / Principal Engineers", "VP of Engineering", "Tech Leads & Scrum Masters"],
+          "badge": "STRATEGIC TIER",
+          "accent": "amber"
+        }
+      ]
+    },
+    {
+      "id": "dual_pathway_interactive",
+      "name": "Dual Workflow Interactive Tabs (For Talent vs For Companies)",
+      "type": "tabbed_interactive_flow",
+      "talent_pathway": {
+        "title_en": "For IT Professionals & Cyber Experts",
+        "title_es": "Para Desarrolladores y Expertos en Ciberseguridad",
+        "steps": [
+          { "step": "01", "title_en": "Fast-Track Skill Benchmark", "title_es": "Validación Técnica Rápida", "desc_en": "Complete a 45-min hands-on tech challenge tailored to your specialization.", "desc_es": "Completa un reto práctico de 45 minutos adaptado a tu especialidad." },
+          { "step": "02", "title_en": "Profile Curation & Salary Alignment", "title_es": "Definición Salarial en USD", "desc_en": "Set your global USD benchmark, tax preferences, and timezone overlap.", "desc_es": "Establece tu tarifa en USD, modalidad de cobro y horario preferido." },
+          { "step": "03", "title_en": "Direct Matches with Funded Tech Startups", "title_es": "Ofertas Directas sin Intermediarios", "desc_en": "Skip recruitment spam. Receive direct match offers from verified CTOs.", "desc_es": "Sin spam de reclutadores. Recibe ofertas directas de CTOs verificados." }
+        ]
+      },
+      "company_pathway": {
+        "title_en": "For Tech Companies & Founders",
+        "title_es": "Para Empresas y Líderes de Tecnología",
+        "steps": [
+          { "step": "01", "title_en": "Specify Tech Stack & Seniority", "title_es": "Define tu Stack y Nivel", "desc_en": "Share your exact architecture needs, compliance criteria, and budget.", "desc_es": "Comparte tus requerimientos técnicos, normativa y presupuesto." },
+          { "step": "02", "title_en": "Review Top 3 Vetted Profiles", "title_es": "Recibe 3 Perfiles Calificados", "desc_en": "Get video intros, validated code repositories, and security scores within 48h.", "desc_es": "Obtén resúmenes técnicos, repositorios validados y score de seguridad en 48h." },
+          { "step": "03", "title_en": "Risk-Free 14-Day Trial & Onboarding", "title_es": "Periodo de Prueba de 14 Días", "desc_en": "Seamless compliance, automated cross-border payroll, and replacement guarantee.", "desc_es": "Contratos globales, gestión de pagos y garantía de reemplazo incluida." }
+        ]
+      }
+    },
+    {
+      "id": "lead_capture_form",
+      "name": "High-Conversion Lead Capture & Intake Terminal",
+      "type": "lead_generation_form",
+      "description": "Unified terminal form with role selector [Talent / Company], full validation, instant feedback with sonner toast, saving to backend /api/leads endpoint",
+      "fields": [
+        { "name": "role", "label_en": "I am a...", "label_es": "Soy un...", "options": ["Software Developer / IT", "Cybersecurity Specialist", "Company / Hiring Manager"] },
+        { "name": "full_name", "label_en": "Full Name", "label_es": "Nombre Completo", "type": "text", "placeholder": "e.g. Alex Vance" },
+        { "name": "email", "label_en": "Work / Professional Email", "label_es": "Correo Electrónico", "type": "email", "placeholder": "alex@ashtor.net" },
+        { "name": "skills_or_needs", "label_en": "Primary Tech Stack or Hiring Requirements", "label_es": "Stack Tecnológico o Requisitos de Contratación", "type": "textarea", "placeholder": "e.g. Senior Golang & Kubernetes with AWS SecOps experience..." },
+        { "name": "location", "label_en": "Current Location / Country", "label_es": "País / Ubicación", "type": "text", "placeholder": "e.g. Spain, Argentina, Mexico, USA..." }
+      ],
+      "submit_btn_en": "Initialize Connection Protocol →",
+      "submit_btn_es": "Inicializar Protocolo de Conexión →"
+    },
+    {
+      "id": "footer",
+      "name": "Tactical Monochrome Footer",
+      "type": "cinematic_footer",
+      "features": [
+        "Massive brand display watermark 'ASHTOR.NET'",
+        "Live status badge: 'SYSTEM OPERATIONAL - NODES SECURE'",
+        "Quick links: Talent Portal, Client Hub, Security Charter, Terms, Privacy",
+        "Language switch & copyright notice"
+      ]
+    }
+  ],
+  "image_urls": {
+    "developer_dark_screen": {
+      "url": "https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxjeWJlcnNlY3VyaXR5JTIwZGV2ZWxvcGVyJTIwcmVtb3RlJTIwdGVjaHxlbnwwfHx8fDE3ODczMzc3NDd8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Person working on dual code screens in dark tech environment",
+      "placement": "Used as background textural layer with gradient scrim in hero or manifesto chapter 01"
+    },
+    "cybersecurity_padlock_glow": {
+      "url": "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxjeWJlcnNlY3VyaXR5JTIwZGV2ZWxvcGVyJTIwcmVtb3RlJTIwdGVjaHxlbnwwfHx8fDE3ODczMzc3NDd8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Hardware security lock with keyboard illumination",
+      "placement": "Used in the Cybersecurity specialization card / Security chapter"
+    },
+    "engineer_focused_typing": {
+      "url": "https://images.pexels.com/photos/5483071/pexels-photo-5483071.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "A person typing code with focus on security and remote development",
+      "placement": "Used in the Dual Track interactive workflow"
+    },
+    "engineer_confident_portrait": {
+      "url": "https://images.pexels.com/photos/6804094/pexels-photo-6804094.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Portrait of young remote IT professional with headphones",
+      "placement": "Used in the talent spotlight / testimonial section"
+    }
+  },
+  "testing_attributes": {
+    "data_test_ids": {
+      "language_toggle_es": "language-toggle-es",
+      "language_toggle_en": "language-toggle-en",
+      "hero_headline": "hero-headline",
+      "hero_find_job_cta": "hero-find-job-cta",
+      "hero_hire_talent_cta": "hero-hire-talent-cta",
+      "manifesto_section": "manifesto-section",
+      "specialization_card_cyber": "specialization-card-cyber",
+      "specialization_card_dev": "specialization-card-dev",
+      "workflow_tab_talent": "workflow-tab-talent",
+      "workflow_tab_company": "workflow-tab-company",
+      "lead_form": "lead-capture-form",
+      "lead_form_role_select": "lead-form-role-select",
+      "lead_form_name_input": "lead-form-name-input",
+      "lead_form_email_input": "lead-form-email-input",
+      "lead_form_skills_input": "lead-form-skills-input",
+      "lead_form_location_input": "lead-form-location-input",
+      "lead_form_submit_button": "lead-form-submit-button",
+      "footer_status_badge": "footer-status-badge"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Use pure Tailwind CSS + Lucide icons + Framer Motion in React .js files.",
+    "Bilingual support is built-in with a top navigation toggle (ES / EN) affecting all texts, labels, and placeholders seamlessly using an intuitive context or state.",
+    "Implement Lenis smooth scrolling or standard framer-motion stagger-line reveals in the hero section.",
+    "Create the Lead Capture form connected to an API handler (FastAPI backend /api/leads with MongoDB or memory fallback) providing visual feedback using Sonner toast.",
+    "Ensure every interactive element has the respective data-testid attribute defined in this document."
+  ]
+}
