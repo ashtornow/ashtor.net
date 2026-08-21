@@ -9,6 +9,7 @@ import Marquee from "@/components/Marquee";
 import Manifesto from "@/components/Manifesto";
 import Specializations from "@/components/Specializations";
 import Pathways from "@/components/Pathways";
+import AiMatch from "@/components/AiMatch";
 import LeadForm from "@/components/LeadForm";
 import Footer from "@/components/Footer";
 
@@ -37,6 +38,7 @@ function App() {
           <Manifesto />
           <Specializations />
           <Pathways />
+          <AiMatch />
           <LeadForm />
         </main>
         <Footer />

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 import GlobeCanvas from '@/components/GlobeCanvas';
+import ConnectSocial from '@/components/ConnectSocial';
 
 const EASE = [0.16, 1, 0.3, 1];
 
@@ -97,10 +98,19 @@ export default function Hero() {
         </motion.div>
 
         <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: 'easeOut', delay: 1.1 }}
+          className="mt-6"
+        >
+          <ConnectSocial />
+        </motion.div>
+
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.9, delay: 1.2 }}
-          className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/[0.06] border border-white/[0.06] rounded-xl overflow-hidden max-w-3xl"
+          transition={{ duration: 0.9, delay: 1.3 }}
+          className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/[0.06] border border-white/[0.06] rounded-xl overflow-hidden max-w-3xl"
           data-testid="hero-metrics"
         >
           {h.metrics.map((m) => (
