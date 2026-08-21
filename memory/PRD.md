@@ -35,6 +35,10 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 ### 2026-08-21 (v2.1)
 - Custom wink logo mark (chevron eye + raised wink line + smile curve) replaces terminal icon in navbar and footer. LinkedIn kept in demo mode per user request.
 
+### 2026-08-21 (v2.2)
+- Logo lines re-spaced for legibility; wink animates on hover (line drops, springs back, smile widens); SVG favicon added (browser tab icon)
+- Lead pipeline: leads have status new/contacted/matched/hired; PATCH /api/admin/leads/{id}/status (admin-only, validated); admin leads table has one-click status pills with optimistic UI
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

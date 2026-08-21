@@ -60,6 +60,7 @@ class Lead(BaseModel):
     skills_or_needs: str
     location: str
     language: str = "en"
+    status: str = "new"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -250,6 +251,23 @@ async def admin_social(admin=Depends(get_current_admin)):
 @api_router.get("/admin/linkedin-profiles")
 async def admin_linkedin(admin=Depends(get_current_admin)):
     return await db.linkedin_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+class LeadStatusIn(BaseModel):
+    status: str
+
+
+ALLOWED_LEAD_STATUSES = {"new", "contacted", "matched", "hired"}
+
+
+@api_router.patch("/admin/leads/{lead_id}/status")
+async def admin_set_lead_status(lead_id: str, input: LeadStatusIn, admin=Depends(get_current_admin)):
+    if input.status not in ALLOWED_LEAD_STATUSES:
+        raise HTTPException(status_code=422, detail="Invalid status")
+    res = await db.leads.update_one({"id": lead_id}, {"$set": {"status": input.status}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"id": lead_id, "status": input.status}
 
 
 # ---------- LinkedIn OIDC ----------

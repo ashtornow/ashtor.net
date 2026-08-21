@@ -7,6 +7,14 @@ import { useLanguage } from '@/i18n';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const creds = { withCredentials: true };
 
+const STATUSES = ['new', 'contacted', 'matched', 'hired'];
+const STATUS_STYLE = {
+  new: 'border-slate-400/40 text-slate-200 bg-white/[0.06]',
+  contacted: 'border-cyan-400/50 text-cyan-300 bg-cyan-400/[0.08]',
+  matched: 'border-emerald-500/50 text-emerald-300 bg-emerald-500/[0.08]',
+  hired: 'border-amber-400/50 text-amber-300 bg-amber-400/[0.08]',
+};
+
 export default function Admin() {
   const { t } = useLanguage();
   const a = t.admin;
@@ -19,6 +27,13 @@ export default function Admin() {
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
+
+  const STATUS_LABEL = {
+    new: a.statusNew,
+    contacted: a.statusContacted,
+    matched: a.statusMatched,
+    hired: a.statusHired,
+  };
 
   useEffect(() => {
     (async () => {
@@ -65,6 +80,16 @@ export default function Admin() {
   const logout = async () => {
     await axios.post(`${API}/auth/logout`, {}, creds);
     setUser(false);
+  };
+
+  const patchStatus = async (leadId, status) => {
+    const prev = leads;
+    setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, status } : l)));
+    try {
+      await axios.patch(`${API}/admin/leads/${leadId}/status`, { status }, creds);
+    } catch {
+      setLeads(prev);
+    }
   };
 
   const fmt = (d) => {
@@ -197,11 +222,12 @@ export default function Admin() {
                     <th className="text-left px-5 py-3.5">{a.colRole}</th>
                     <th className="text-left px-5 py-3.5">{a.colLocation}</th>
                     <th className="text-left px-5 py-3.5">{a.colDate}</th>
+                    <th className="text-left px-5 py-3.5">{a.colStatus}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-600 text-xs">{a.empty}</td></tr>
+                    <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-600 text-xs">{a.empty}</td></tr>
                   )}
                   {leads.map((l) => (
                     <tr key={l.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
@@ -210,6 +236,24 @@ export default function Admin() {
                       <td className="px-5 py-3.5 text-slate-400">{l.role}</td>
                       <td className="px-5 py-3.5 text-slate-400">{l.location}</td>
                       <td className="px-5 py-3.5 text-slate-500 text-xs">{fmt(l.created_at)}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-wrap gap-1.5" data-testid={`lead-pipeline-${l.id}`}>
+                          {STATUSES.map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => patchStatus(l.id, s)}
+                              data-testid={`lead-status-${s}-${l.id}`}
+                              className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-all duration-200 ${
+                                (l.status || 'new') === s
+                                  ? STATUS_STYLE[s]
+                                  : 'border-white/[0.08] text-slate-600 hover:text-slate-300 hover:border-white/25'
+                              }`}
+                            >
+                              {STATUS_LABEL[s]}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
