@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Terminal } from 'lucide-react';
+import { LogoBox } from '@/components/Logo';
 import { useLanguage } from '@/i18n';
 
 export default function Footer() {
@@ -11,10 +11,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-10 relative z-10">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-10">
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
-              <span className="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center">
-                <Terminal size={15} className="text-emerald-400" />
-              </span>
+            <div className="flex items-center gap-2.5 mb-4 group w-fit">
+              <LogoBox />
               <span className="font-display font-extrabold tracking-tight text-lg">
                 ashtor<span className="text-emerald-400">.net</span>
               </span>

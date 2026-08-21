@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { Terminal } from 'lucide-react';
 import { useLanguage } from '@/i18n';
+import { LogoBox } from '@/components/Logo';
 
 const scrollTo = (id) => {
   const el = document.getElementById(id);
@@ -31,9 +31,7 @@ export default function Navbar() {
           className="flex items-center gap-2.5 group"
           data-testid="nav-logo"
         >
-          <span className="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center group-hover:shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-shadow duration-300">
-            <Terminal size={15} className="text-emerald-400" />
-          </span>
+          <LogoBox />
           <span className="font-display font-extrabold tracking-tight text-lg">
             ashtor<span className="text-emerald-400">.net</span>
           </span>

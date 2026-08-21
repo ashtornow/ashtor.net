@@ -32,6 +32,9 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Admin Command Center at /admin: JWT login, tabs for Leads / LinkedIn connections / OIDC verified profiles, protected /api/admin/* endpoints
 - Live AI streaming: /api/ai-match/stream renders raw model tokens in a terminal feed, then structured report
 
+### 2026-08-21 (v2.1)
+- Custom wink logo mark (chevron eye + raised wink line + smile curve) replaces terminal icon in navbar and footer. LinkedIn kept in demo mode per user request.
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
