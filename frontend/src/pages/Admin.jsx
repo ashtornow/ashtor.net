@@ -24,6 +24,7 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('leads');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
@@ -34,6 +35,9 @@ export default function Admin() {
     matched: a.statusMatched,
     hired: a.statusHired,
   };
+
+  const filteredLeads =
+    statusFilter === 'all' ? leads : leads.filter((l) => (l.status || 'new') === statusFilter);
 
   useEffect(() => {
     (async () => {
@@ -214,6 +218,25 @@ export default function Admin() {
         <div className="rounded-2xl border border-white/[0.07] bg-[#111620]/70 overflow-hidden">
           {tab === 'leads' && (
             <div className="overflow-x-auto" data-testid="admin-leads-table">
+              <div className="flex flex-wrap gap-1.5 px-5 py-3.5 border-b border-white/[0.07]" data-testid="lead-filter-bar">
+                {['all', ...STATUSES].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    data-testid={`lead-filter-${s}`}
+                    className={`rounded-full border px-3 py-1 text-[10px] font-semibold transition-all duration-200 ${
+                      statusFilter === s
+                        ? 'border-emerald-500/50 text-emerald-300 bg-emerald-500/[0.08]'
+                        : 'border-white/[0.08] text-slate-500 hover:text-slate-300 hover:border-white/25'
+                    }`}
+                  >
+                    {s === 'all' ? a.filterAll : STATUS_LABEL[s]}
+                    <span className="ml-1.5 opacity-60">
+                      {s === 'all' ? leads.length : leads.filter((l) => (l.status || 'new') === s).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.07] font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500">
@@ -226,10 +249,10 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.length === 0 && (
+                  {filteredLeads.length === 0 && (
                     <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-600 text-xs">{a.empty}</td></tr>
                   )}
-                  {leads.map((l) => (
+                  {filteredLeads.map((l) => (
                     <tr key={l.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                       <td className="px-5 py-3.5 text-slate-200">{l.full_name}</td>
                       <td className="px-5 py-3.5 text-slate-400">{l.email}</td>

@@ -3,10 +3,14 @@ import re
 import json
 import uuid
 import secrets
+import asyncio
 import logging
+import ipaddress
 from pathlib import Path
+from html import escape
+from html.parser import HTMLParser
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).parent
@@ -37,6 +41,12 @@ LINKEDIN_CLIENT_ID = os.environ.get("LINKEDIN_CLIENT_ID", "")
 LINKEDIN_CLIENT_SECRET = os.environ.get("LINKEDIN_CLIENT_SECRET", "")
 LINKEDIN_REDIRECT_URI = os.environ.get("LINKEDIN_REDIRECT_URI", "")
 
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
+ALERT_EMAIL = os.environ.get("ALERT_EMAIL", "")
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+
 serializer = URLSafeTimedSerializer(SESSION_SECRET)
 LINKEDIN_AUTH = "https://www.linkedin.com/oauth/v2/authorization"
 LINKEDIN_TOKEN = "https://www.linkedin.com/oauth/v2/accessToken"
@@ -47,6 +57,161 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 logger = logging.getLogger(__name__)
+
+
+# ---------- email guardrail gate ----------
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan()
+    scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+
+async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if reply_to or EMAIL_REPLY_TO:
+        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            resp = await http.post(
+                f"{EMAIL_BASE_URL}/api/v1/email/send",
+                headers={"X-Email-Key": EMAIL_KEY},
+                json=payload,
+            )
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
+    except Exception as e:
+        logger.error(f"Email send error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send email")
+
+
+def _alert_html(title: str, rows: list) -> str:
+    cells = "".join(
+        f'<tr><td style="padding:6px 12px;font-size:12px;color:#94A3B8;text-transform:uppercase;'
+        f'letter-spacing:1px">{escape(k)}</td>'
+        f'<td style="padding:6px 12px;font-size:14px;color:#F8FAFC">{escape(str(v))}</td></tr>'
+        for k, v in rows
+    )
+    admin_url = f"{FRONTEND_URL}/admin"
+    return (
+        '<table role="presentation" width="100%" style="background:#07090E;padding:32px 0"><tr><td align="center">'
+        '<table role="presentation" width="520" style="background:#111620;border:1px solid #1E293B;'
+        'border-radius:12px;padding:28px;font-family:Arial,sans-serif">'
+        f'<tr><td style="font-size:11px;color:#10B981;letter-spacing:3px;padding-bottom:8px">ASHTOR.NET // INTAKE SIGNAL</td></tr>'
+        f'<tr><td style="font-size:20px;color:#F8FAFC;font-weight:bold;padding-bottom:16px">{escape(title)}</td></tr>'
+        f'<tr><td><table role="presentation" width="100%" style="border-top:1px solid #1E293B">{cells}</table></td></tr>'
+        f'<tr><td style="padding-top:20px"><a href="{admin_url}" style="display:inline-block;background:#10B981;'
+        'color:#07090E;font-size:13px;font-weight:bold;padding:10px 22px;border-radius:999px;'
+        'text-decoration:none">Open Command Center</a></td></tr>'
+        f'<tr><td style="padding-top:20px;font-size:11px;color:#64748B">Sent by {escape(EMAIL_FROM_NAME)}. '
+        'We never ask for your password or card details by email.</td></tr>'
+        '</table></td></tr></table>'
+    )
+
+
+async def notify_new_lead(lead) -> None:
+    if not ALERT_EMAIL:
+        return
+    try:
+        await send_email(
+            to=ALERT_EMAIL,
+            subject=f"New lead: {lead.full_name}",
+            html=_alert_html("New lead received", [
+                ("Name", lead.full_name), ("Email", lead.email), ("Role", lead.role),
+                ("Location", lead.location), ("Stack / Needs", lead.skills_or_needs),
+                ("Language", lead.language), ("Received", lead.created_at.isoformat()),
+            ]),
+        )
+    except Exception:
+        logger.exception("lead alert email failed")
+
+
+async def notify_new_connection(conn) -> None:
+    if not ALERT_EMAIL:
+        return
+    try:
+        await send_email(
+            to=ALERT_EMAIL,
+            subject=f"New {conn.provider} connection: {conn.full_name or conn.profile_url}",
+            html=_alert_html("New social connection", [
+                ("Name", conn.full_name or "—"), ("Provider", conn.provider),
+                ("Profile URL", conn.profile_url), ("Verified", conn.verified),
+                ("Received", conn.created_at.isoformat()),
+            ]),
+        )
+    except Exception:
+        logger.exception("connection alert email failed")
 
 
 # ---------- models ----------
@@ -183,6 +348,7 @@ async def create_lead(input: LeadCreate):
     doc = lead.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.leads.insert_one(doc)
+    asyncio.create_task(notify_new_lead(lead))
     return lead
 
 
@@ -194,6 +360,7 @@ async def create_social_connect(input: SocialConnectCreate):
     doc = conn.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.social_connections.insert_one(doc)
+    asyncio.create_task(notify_new_connection(conn))
     return conn
 
 
@@ -221,8 +388,8 @@ async def login(input: LoginIn, request: Request, response: Response):
     await db.login_attempts.delete_one({"identifier": ident})
     response.set_cookie("access_token", create_access_token(str(user["_id"]), email),
                         httponly=True, secure=True, samesite="lax", max_age=900, path="/")
-    response.set_cookie("refresh_token", create_refresh_token(str(user["_id"])),
-                        httponly=True, secure=True, samesite="lax", max_age=604800, path="/")
+    response.set_cookie("refresh_token", create_refresh_token(str(user["_id"]),
+                        ), httponly=True, secure=True, samesite="lax", max_age=604800, path="/")
     return {"email": email, "name": user.get("name", "Admin"), "role": "admin"}
 
 

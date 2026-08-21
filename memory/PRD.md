@@ -39,6 +39,11 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Logo lines re-spaced for legibility; wink animates on hover (line drops, springs back, smile widens); SVG favicon added (browser tab icon)
 - Lead pipeline: leads have status new/contacted/matched/hired; PATCH /api/admin/leads/{id}/status (admin-only, validated); admin leads table has one-click status pills with optimistic UI
 
+### 2026-08-21 (v2.3)
+- Logo v3: right wink line centered at eye height, all strokes more separated; favicon updated to match
+- Pipeline filters: leads table has All/New/Contacted/Matched/Hired filter pills with live counts
+- Email alerts: Emergent-managed Resend; fire-and-forget notification email on new lead + new social connection (guardrail gate + escaped server-side templates, dark branded HTML). ALERT_EMAIL currently delivered@resend.dev (integration test address) — PENDING user's real email for production
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

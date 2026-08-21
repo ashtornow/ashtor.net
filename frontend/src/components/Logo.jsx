@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 const winkVariants = {
   rest: { y: 0 },
-  wink: { y: 3.4 },
+  wink: { y: 3 },
 };
 
 const mouthVariants = {
@@ -23,17 +23,17 @@ export const LogoMark = ({ size = 15, className = "text-emerald-400" }) => (
     className={className}
     aria-hidden
   >
-    <path d="M4 6.5 L8 10.5 L4 14.5" />
+    <path d="M3.5 7.5 L8 12 L3.5 16.5" />
     <motion.line
       x1="14.5"
-      y1="7.5"
+      y1="12"
       x2="20"
-      y2="4.5"
+      y2="11"
       variants={winkVariants}
       transition={{ type: 'spring', stiffness: 520, damping: 11 }}
     />
     <motion.path
-      d="M6 18 Q12 22.5 18 17"
+      d="M5.5 19 Q12 23.5 18.5 18"
       variants={mouthVariants}
       transition={{ type: 'spring', stiffness: 400, damping: 14 }}
       style={{ transformBox: 'fill-box', transformOrigin: 'top center' }}
