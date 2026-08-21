@@ -44,6 +44,10 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Pipeline filters: leads table has All/New/Contacted/Matched/Hired filter pills with live counts
 - Email alerts: Emergent-managed Resend; fire-and-forget notification email on new lead + new social connection (guardrail gate + escaped server-side templates, dark branded HTML). ALERT_EMAIL currently delivered@resend.dev (integration test address) — PENDING user's real email for production
 
+### 2026-08-21 (v2.4)
+- 5 content pages live with routes: /talent-portal, /client-hub, /security-charter, /terms, /privacy (bilingual, numbered sections, CTA to intake form, mailto info@ashtor.net). Footer links now route to them; footer shows contact email
+- ALERT_EMAIL + EMAIL_REPLY_TO set to info@ashtor.net — NOTE: email proxy rejects it as undeliverable (422) because the mailbox/domain MX is not reachable yet; pipeline itself verified working (202 to delivered@resend.dev). Alerts resume automatically once info@ashtor.net mailbox exists
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

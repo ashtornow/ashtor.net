@@ -1,6 +1,11 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+import { Mail } from 'lucide-react';
 import { LogoBox } from '@/components/Logo';
 import { useLanguage } from '@/i18n';
+
+const LINK_PATHS = ['/talent-portal', '/client-hub', '/security-charter', '/terms', '/privacy'];
+const LINK_IDS = ['talent-portal', 'client-hub', 'security-charter', 'terms', 'privacy'];
 
 export default function Footer() {
   const { t } = useLanguage();
@@ -18,7 +23,7 @@ export default function Footer() {
               </span>
             </div>
             <div
-              className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3.5 py-1.5"
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3.5 py-1.5 mb-4"
               data-testid="footer-status-badge"
             >
               <span className="pulse-dot w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -26,19 +31,28 @@ export default function Footer() {
                 {f.status}
               </span>
             </div>
+            <div>
+              <a
+                href="mailto:info@ashtor.net"
+                data-testid="footer-contact-email"
+                className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-emerald-300 transition-colors duration-300"
+              >
+                <Mail size={14} className="text-emerald-400" />
+                info@ashtor.net
+              </a>
+            </div>
           </div>
 
           <nav className="flex flex-wrap gap-x-8 gap-y-3">
-            {f.links.map((link) => (
-              <a
+            {f.links.map((link, i) => (
+              <Link
                 key={link}
-                href="#"
-                onClick={(e) => e.preventDefault()}
+                to={LINK_PATHS[i]}
                 className="text-sm text-slate-500 hover:text-emerald-300 transition-colors duration-300"
-                data-testid={`footer-link-${link.toLowerCase().replace(/\s+/g, '-')}`}
+                data-testid={`footer-link-${LINK_IDS[i]}`}
               >
                 {link}
-              </a>
+              </Link>
             ))}
           </nav>
         </div>

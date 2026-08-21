@@ -15,6 +15,7 @@ import LeadForm from "@/components/LeadForm";
 import Footer from "@/components/Footer";
 import ChatWidget from "@/components/ChatWidget";
 import Admin from "@/pages/Admin";
+import InfoPage from "@/pages/InfoPage";
 
 const Landing = () => (
   <>
@@ -55,6 +56,11 @@ function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/talent-portal" element={<InfoPage slug="talent-portal" />} />
+            <Route path="/client-hub" element={<InfoPage slug="client-hub" />} />
+            <Route path="/security-charter" element={<InfoPage slug="security-charter" />} />
+            <Route path="/terms" element={<InfoPage slug="terms" />} />
+            <Route path="/privacy" element={<InfoPage slug="privacy" />} />
           </Routes>
         </BrowserRouter>
         <Toaster

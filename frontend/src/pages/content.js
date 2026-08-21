@@ -1,0 +1,126 @@
+export const pagesContent = {
+  en: {
+    'talent-portal': {
+      eyebrow: 'TALENT PORTAL',
+      title: 'Your career, borderless',
+      intro: 'The portal where elite developers and cybersecurity specialists get vetted once and matched forever.',
+      sections: [
+        { h: 'One vetting, many offers', b: 'Pass our blind algorithmic challenge and live system design review once. Your verified profile is then routed to every matching company in the network — no repeated interview loops, no resume black holes.' },
+        { h: 'USD salary benchmarking', b: 'Set your rate in USD using our global benchmark data. We align expectations with companies before you ever get on a call, so offers land inside your band from day one.' },
+        { h: 'Direct line to CTOs', b: 'No recruiter spam, no keyword bingo. Match offers come from verified technical founders and CTOs who already reviewed your validated scores and code repositories.' },
+        { h: 'Verified identity badge', b: 'Connect LinkedIn to attach a verified identity badge to your profile. Verified nodes are trusted more and routed first in every match cycle.' },
+      ],
+      cta: 'Apply as talent',
+    },
+    'client-hub': {
+      eyebrow: 'CLIENT HUB',
+      title: 'Hire elite engineers in 72 hours',
+      intro: 'The command deck for companies building distributed engineering teams without geographic friction.',
+      sections: [
+        { h: 'Top 3 profiles in 48h', b: 'Share your stack, seniority, and compliance needs. Within 48 hours you receive three pre-vetted profiles with validated repositories, security scores, and video intros.' },
+        { h: 'Risk-free 14-day trial', b: 'Every engagement starts with a two-week trial. If the match does not perform, we replace the engineer at no cost — guaranteed in the service agreement.' },
+        { h: 'Global payroll & compliance', b: 'Cross-border contracts, local tax compliance, and automated USD payroll are handled inside the hub. You manage the roadmap; we manage the paperwork.' },
+        { h: 'Security-first matching', b: 'Cybersecurity roles are matched only with defenders who passed live threat simulations and zero-day response drills. Your attack surface stays yours alone.' },
+      ],
+      cta: 'Hire talent',
+    },
+    'security-charter': {
+      eyebrow: 'SECURITY CHARTER',
+      title: 'How we protect every node in the network',
+      intro: 'Ashtor.net is built by people who secure systems for a living. This charter is our public commitment.',
+      sections: [
+        { h: 'Minimal data, maximal care', b: 'We collect only what matching requires: your intake form, your verified social identity, and your chat with our AI guide. Nothing is sold, shared, or brokered — ever.' },
+        { h: 'Identity via OpenID Connect', b: 'LinkedIn verification uses the official OIDC protocol. We validate token signatures against LinkedIn’s keys, store no access tokens, and key every profile by its opaque subject ID.' },
+        { h: 'Encrypted transport, hashed credentials', b: 'All traffic runs over HTTPS. Administrative credentials are bcrypt-hashed, sessions live in httpOnly cookies, and sign-in attempts are rate-limited with automatic lockout.' },
+        { h: 'Report a vulnerability', b: 'Found something? We want to know before anyone else does. Write to info@ashtor.net with details and we will respond within 48 hours.' },
+      ],
+      cta: 'Contact security',
+    },
+    terms: {
+      eyebrow: 'TERMS OF SERVICE',
+      title: 'The rules of the network',
+      intro: 'Last updated: August 2026. These terms govern your use of ashtor.net.',
+      sections: [
+        { h: 'The service', b: 'Ashtor.net connects IT professionals with companies hiring remotely. We provide vetting, matching, and coordination infrastructure; employment contracts are agreed between talent and companies.' },
+        { h: 'Eligibility & conduct', b: 'You must provide accurate information in intake forms and vetting challenges. Impersonation, falsified credentials, or abuse of the platform leads to immediate removal from the network.' },
+        { h: 'Engagements & payments', b: 'Commercial terms, rates, and trial conditions are defined per engagement inside the Client Hub. Ashtor.net may facilitate cross-border payroll as part of a service agreement.' },
+        { h: 'Liability & changes', b: 'The platform is provided as is, within the limits of applicable law. We may update these terms; continued use after notice constitutes acceptance. Questions: info@ashtor.net.' },
+      ],
+      cta: 'Back to home',
+    },
+    privacy: {
+      eyebrow: 'PRIVACY POLICY',
+      title: 'Your data, under your control',
+      intro: 'Last updated: August 2026. This policy explains what we collect and why.',
+      sections: [
+        { h: 'What we collect', b: 'Intake form details (name, email, stack, location), social profiles you choose to connect (LinkedIn OIDC claims such as name, email, and picture), and conversations with the AI guide.' },
+        { h: 'How we use it', b: 'Exclusively to operate the network: matching talent with companies, verifying identity, improving match quality, and notifying the site operator about new intake signals.' },
+        { h: 'Storage & retention', b: 'Data lives in encrypted-at-rest infrastructure with access restricted to authorized operators. We never store LinkedIn access tokens or plaintext passwords.' },
+        { h: 'Your rights', b: 'You may request access, correction, or deletion of your data at any time by writing to info@ashtor.net. We respond within 72 hours and delete on request, no questions asked.' },
+      ],
+      cta: 'Back to home',
+    },
+  },
+  es: {
+    'talent-portal': {
+      eyebrow: 'PORTAL DE TALENTO',
+      title: 'Tu carrera, sin fronteras',
+      intro: 'El portal donde desarrolladores de élite y especialistas en ciberseguridad se validan una vez y reciben matches para siempre.',
+      sections: [
+        { h: 'Una validación, muchas ofertas', b: 'Supera una sola vez nuestro reto algorítmico a ciegas y la revisión de diseño de sistemas en vivo. Tu perfil verificado se dirige a cada empresa compatible de la red — sin loops de entrevistas repetidos.' },
+        { h: 'Benchmark salarial en USD', b: 'Define tu tarifa en USD con nuestros datos globales. Alineamos expectativas con las empresas antes de la primera llamada, para que las ofertas caigan dentro de tu banda desde el día uno.' },
+        { h: 'Línea directa con CTOs', b: 'Sin spam de reclutadores ni bingo de palabras clave. Las ofertas llegan de founders y CTOs verificados que ya revisaron tus puntajes validados y repositorios.' },
+        { h: 'Insignia de identidad verificada', b: 'Conecta LinkedIn para adjuntar una insignia de identidad verificada a tu perfil. Los nodos verificados generan más confianza y se priorizan en cada ciclo de match.' },
+      ],
+      cta: 'Aplicar como talento',
+    },
+    'client-hub': {
+      eyebrow: 'HUB DE CLIENTES',
+      title: 'Contrata ingenieros de élite en 72 horas',
+      intro: 'El centro de mando para empresas que construyen equipos de ingeniería distribuidos sin fricción geográfica.',
+      sections: [
+        { h: 'Top 3 perfiles en 48h', b: 'Comparte tu stack, seniority y requisitos de cumplimiento. En 48 horas recibes tres perfiles pre-validados con repositorios verificados, scores de seguridad e intros en video.' },
+        { h: 'Prueba de 14 días sin riesgo', b: 'Toda contratación empieza con dos semanas de prueba. Si el match no rinde, reemplazamos al ingeniero sin costo — garantizado en el acuerdo de servicio.' },
+        { h: 'Payroll y cumplimiento global', b: 'Contratos transfronterizos, cumplimiento fiscal local y payroll automatizado en USD se gestionan dentro del hub. Tú manejas el roadmap; nosotros el papeleo.' },
+        { h: 'Matching security-first', b: 'Los roles de ciberseguridad solo se asignan a especialistas que superaron simulaciones de amenazas en vivo y ejercicios de respuesta zero-day. Tu superficie de ataque sigue siendo solo tuya.' },
+      ],
+      cta: 'Contratar talento',
+    },
+    'security-charter': {
+      eyebrow: 'CARTA DE SEGURIDAD',
+      title: 'Cómo protegemos cada nodo de la red',
+      intro: 'Ashtor.net está construido por personas que aseguran sistemas para vivir. Esta carta es nuestro compromiso público.',
+      sections: [
+        { h: 'Datos mínimos, cuidado máximo', b: 'Solo recolectamos lo que el matching requiere: tu formulario de registro, tu identidad social verificada y tu chat con el guía IA. Nada se vende, comparte o negocia — nunca.' },
+        { h: 'Identidad vía OpenID Connect', b: 'La verificación de LinkedIn usa el protocolo oficial OIDC. Validamos firmas de tokens contra las llaves de LinkedIn, no guardamos access tokens y cada perfil se indexa por su ID opaco.' },
+        { h: 'Transporte cifrado, credenciales hasheadas', b: 'Todo el tráfico va sobre HTTPS. Las credenciales administrativas se hashean con bcrypt, las sesiones viven en cookies httpOnly y los intentos de acceso tienen bloqueo automático.' },
+        { h: 'Reporta una vulnerabilidad', b: '¿Encontraste algo? Queremos saberlo antes que nadie. Escribe a info@ashtor.net con los detalles y respondemos en menos de 48 horas.' },
+      ],
+      cta: 'Contactar seguridad',
+    },
+    terms: {
+      eyebrow: 'TÉRMINOS DE SERVICIO',
+      title: 'Las reglas de la red',
+      intro: 'Última actualización: agosto 2026. Estos términos rigen el uso de ashtor.net.',
+      sections: [
+        { h: 'El servicio', b: 'Ashtor.net conecta profesionales de IT con empresas que contratan en remoto. Proveemos infraestructura de validación, matching y coordinación; los contratos laborales se acuerdan entre talento y empresas.' },
+        { h: 'Elegibilidad y conducta', b: 'Debes proporcionar información precisa en los formularios y retos de validación. Suplantación, credenciales falsificadas o abuso de la plataforma implican expulsión inmediata de la red.' },
+        { h: 'Contrataciones y pagos', b: 'Los términos comerciales, tarifas y condiciones de prueba se definen por contratación dentro del Client Hub. Ashtor.net puede facilitar payroll transfronterizo como parte del acuerdo de servicio.' },
+        { h: 'Responsabilidad y cambios', b: 'La plataforma se ofrece tal cual, dentro de los límites de la ley aplicable. Podemos actualizar estos términos; el uso continuado tras el aviso implica aceptación. Preguntas: info@ashtor.net.' },
+      ],
+      cta: 'Volver al inicio',
+    },
+    privacy: {
+      eyebrow: 'POLÍTICA DE PRIVACIDAD',
+      title: 'Tus datos, bajo tu control',
+      intro: 'Última actualización: agosto 2026. Esta política explica qué recolectamos y por qué.',
+      sections: [
+        { h: 'Qué recolectamos', b: 'Datos del formulario (nombre, correo, stack, ubicación), perfiles sociales que decidas conectar (claims OIDC de LinkedIn como nombre, correo y foto) y conversaciones con el guía IA.' },
+        { h: 'Cómo los usamos', b: 'Exclusivamente para operar la red: conectar talento con empresas, verificar identidad, mejorar la calidad del match y notificar al operador sobre nuevas señales de registro.' },
+        { h: 'Almacenamiento y retención', b: 'Los datos viven en infraestructura cifrada en reposo con acceso restringido a operadores autorizados. Nunca guardamos tokens de acceso de LinkedIn ni contraseñas en texto plano.' },
+        { h: 'Tus derechos', b: 'Puedes solicitar acceso, corrección o eliminación de tus datos en cualquier momento escribiendo a info@ashtor.net. Respondemos en menos de 72 horas y eliminamos sin preguntas.' },
+      ],
+      cta: 'Volver al inicio',
+    },
+  },
+};
