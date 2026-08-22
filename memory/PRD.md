@@ -58,6 +58,9 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Lead Notes: PATCH /api/admin/leads/{id}/note (admin-only); admin leads rows have a note toggle (amber when a note exists) with inline editor + save
 - LinkedIn OAuth still blocked: "redirect_uri does not match the registered value" — user has NOT yet registered the redirect URLs in the LinkedIn app
 
+### 2026-08-22 (v2.7)
+- Interactive skills: each of the 14 roles in the Specializations section shows a floating glass "case file" popup on hover (tap on mobile) with realistic project example, highlighted metric, description and tech stack tags — bilingual EN/ES, spring entrance animation, accent-colored per domain. Screenshot verified.
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
