@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
+import { usePageMeta } from '@/lib/seo';
 import { AdminLogin } from '@/pages/admin/AdminLogin';
 import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable } from '@/pages/admin/AdminTables';
 
@@ -12,6 +13,7 @@ const creds = { withCredentials: true };
 export default function Admin() {
   const { t } = useLanguage();
   const a = t.admin;
+  usePageMeta('admin');
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

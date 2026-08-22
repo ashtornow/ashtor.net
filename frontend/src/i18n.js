@@ -269,6 +269,8 @@ export const translations = {
       links: ['Talent Portal', 'Client Hub', 'Security Charter', 'Terms', 'Privacy'],
       rights: '© 2026 ashtor.net — Connect. Build. Remote.',
       note: 'Engineered for the borderless workforce.',
+      seoTitle: 'Remote tech recruitment, done right',
+      seoText: 'ashtor.net is a remote tech recruitment platform connecting companies with verified software engineers, cybersecurity specialists and engineering leaders across the globe. Every candidate can prove their identity through LinkedIn and GitHub verification, and our AI Match Engine evaluates skills, seniority and salary expectations in real time. Whether you are a startup hiring your first senior backend developer, an enterprise building a 24/7 security operations team, or an IT professional looking for high-quality remote roles in Latin America, Europe or the United States — Ashtor routes you to the right match in days, not months. Connect. Build. Remote.',
     },
   },
   es: {
@@ -539,6 +541,8 @@ export const translations = {
       links: ['Portal de Talento', 'Hub de Clientes', 'Carta de Seguridad', 'Términos', 'Privacidad'],
       rights: '© 2026 ashtor.net — Conecta. Construye. Remoto.',
       note: 'Diseñado para la fuerza de trabajo sin fronteras.',
+      seoTitle: 'Reclutamiento tech remoto, bien hecho',
+      seoText: 'ashtor.net es una plataforma de reclutamiento tech remoto que conecta empresas con ingenieros de software, especialistas en ciberseguridad y líderes de ingeniería verificados en todo el mundo. Cada candidato puede demostrar su identidad mediante verificación de LinkedIn y GitHub, y nuestro AI Match Engine evalúa habilidades, seniority y expectativas salariales en tiempo real. Ya seas una startup contratando tu primer backend senior, una empresa construyendo un equipo de seguridad 24/7, o un profesional IT buscando roles remotos de calidad en Latinoamérica, Europa o Estados Unidos — Ashtor te conecta con el match correcto en días, no meses. Conecta. Construye. Remoto.',
     },
   },
 };

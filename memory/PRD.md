@@ -93,6 +93,14 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Frontend: CV picker in lead form (client-side type/size validation, uploads after lead create); admin files panel per lead (paperclip toggle, upload, download blob, delete with confirm, loading state, CV tag)
 - Tested: backend curl E2E (upload/validation/download/delete/auth) + testing_agent frontend 5/5 pass (/app/test_reports/iteration_4.json)
 
+### 2026-08-22 (v2.13 — SEO fixes)
+- Unique per-route titles/descriptions/canonical/og/robots meta via usePageMeta hook (/app/frontend/src/lib/seo.js), EN/ES aware, applied on home + 5 info pages + /admin (noindex,nofollow); html lang attribute synced
+- public/robots.txt (Allow /, Disallow /admin, Sitemap: https://ashtor.net/sitemap.xml) and public/sitemap.xml (6 URLs)
+- Performance: React.lazy code splitting for Admin, InfoPage, ChatWidget with Suspense (smaller initial bundle); og/twitter tags in index.html
+- Footer SEO text block (footer-seo-block, ~110 words EN/ES) to raise word count / text-to-HTML ratio
+- Note: CRA production build minifies automatically; Cloudflare prepends its managed block to robots.txt (user can adjust in Cloudflare dashboard). Fixes reach production after user redeploys
+- Tested by testing_agent: 100% frontend pass (/app/test_reports/iteration_5.json)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

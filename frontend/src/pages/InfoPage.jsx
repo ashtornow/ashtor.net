@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Mail } from 'lucide-react';
 import { useLanguage } from '@/i18n';
+import { usePageMeta } from '@/lib/seo';
 import { LogoBox } from '@/components/Logo';
 import { pagesContent } from '@/pages/content';
 
@@ -9,6 +10,7 @@ export default function InfoPage({ slug }) {
   const { lang, setLang } = useLanguage();
   const c = pagesContent[lang][slug];
   const navigate = useNavigate();
+  usePageMeta(slug);
 
   const goContact = () => {
     navigate('/');

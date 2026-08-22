@@ -57,7 +57,12 @@ export default function Footer() {
           </nav>
         </div>
 
-        <div className="mt-14 pt-8 border-t border-white/[0.05] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="mt-14 pt-8 border-t border-white/[0.05] max-w-3xl" data-testid="footer-seo-block">
+          <h2 className="font-display text-base md:text-lg font-semibold tracking-tight text-slate-300 mb-3">{f.seoTitle}</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">{f.seoText}</p>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-white/[0.05] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-xs text-slate-600">{f.rights}</p>
           <p className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-600">{f.note}</p>
         </div>

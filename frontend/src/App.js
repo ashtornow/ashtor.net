@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import "@/App.css";
 import Lenis from "lenis";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { LanguageProvider } from "@/i18n";
+import { usePageMeta } from "@/lib/seo";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Marquee from "@/components/Marquee";
@@ -14,27 +15,33 @@ import Pathways from "@/components/Pathways";
 import AiMatch from "@/components/AiMatch";
 import LeadForm from "@/components/LeadForm";
 import Footer from "@/components/Footer";
-import ChatWidget from "@/components/ChatWidget";
-import Admin from "@/pages/Admin";
-import InfoPage from "@/pages/InfoPage";
 
-const Landing = () => (
-  <>
-    <Navbar />
-    <main>
-      <Hero />
-      <Marquee />
-      <Manifesto />
-      <Specializations />
-      <SuccessStories />
-      <Pathways />
-      <AiMatch />
-      <LeadForm />
-    </main>
-    <Footer />
-    <ChatWidget />
-  </>
-);
+const ChatWidget = lazy(() => import("@/components/ChatWidget"));
+const Admin = lazy(() => import("@/pages/Admin"));
+const InfoPage = lazy(() => import("@/pages/InfoPage"));
+
+const Landing = () => {
+  usePageMeta('home');
+  return (
+    <>
+      <Navbar />
+      <main>
+        <Hero />
+        <Marquee />
+        <Manifesto />
+        <Specializations />
+        <SuccessStories />
+        <Pathways />
+        <AiMatch />
+        <LeadForm />
+      </main>
+      <Footer />
+      <Suspense fallback={null}>
+        <ChatWidget />
+      </Suspense>
+    </>
+  );
+};
 
 function App() {
   useEffect(() => {
@@ -55,7 +62,8 @@ function App() {
     <LanguageProvider>
       <div className="noise-overlay min-h-screen bg-[#07090E] text-slate-100 overflow-x-hidden">
         <BrowserRouter>
-          <Routes>
+          <Suspense fallback={<div className="min-h-screen bg-[#07090E]" />}>
+            <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/talent-portal" element={<InfoPage slug="talent-portal" />} />
@@ -64,6 +72,7 @@ function App() {
             <Route path="/terms" element={<InfoPage slug="terms" />} />
             <Route path="/privacy" element={<InfoPage slug="privacy" />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
         <Toaster
           theme="dark"
