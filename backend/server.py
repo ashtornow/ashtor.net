@@ -226,6 +226,7 @@ class Lead(BaseModel):
     location: str
     language: str = "en"
     status: str = "new"
+    note: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -435,6 +436,18 @@ async def admin_set_lead_status(lead_id: str, input: LeadStatusIn, admin=Depends
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Lead not found")
     return {"id": lead_id, "status": input.status}
+
+
+class LeadNoteIn(BaseModel):
+    note: str
+
+
+@api_router.patch("/admin/leads/{lead_id}/note")
+async def admin_set_lead_note(lead_id: str, input: LeadNoteIn, admin=Depends(get_current_admin)):
+    res = await db.leads.update_one({"id": lead_id}, {"$set": {"note": input.note}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"id": lead_id, "note": input.note}
 
 
 # ---------- LinkedIn OIDC ----------

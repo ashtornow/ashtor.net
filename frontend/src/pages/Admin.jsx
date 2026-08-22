@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Terminal, ShieldCheck, LogOut, Users, Linkedin, BadgeCheck, Loader2 } from 'lucide-react';
+import { Terminal, ShieldCheck, LogOut, Users, Linkedin, BadgeCheck, Loader2, StickyNote } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -25,6 +25,8 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('leads');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [noteOpen, setNoteOpen] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
@@ -91,6 +93,22 @@ export default function Admin() {
     setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, status } : l)));
     try {
       await axios.patch(`${API}/admin/leads/${leadId}/status`, { status }, creds);
+    } catch {
+      setLeads(prev);
+    }
+  };
+
+  const toggleNote = (l) => {
+    setNoteOpen(noteOpen === l.id ? null : l.id);
+    setNoteDraft(l.note || '');
+  };
+
+  const saveNote = async (leadId) => {
+    const prev = leads;
+    setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, note: noteDraft } : l)));
+    setNoteOpen(null);
+    try {
+      await axios.patch(`${API}/admin/leads/${leadId}/note`, { note: noteDraft }, creds);
     } catch {
       setLeads(prev);
     }
@@ -253,14 +271,15 @@ export default function Admin() {
                     <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-600 text-xs">{a.empty}</td></tr>
                   )}
                   {filteredLeads.map((l) => (
-                    <tr key={l.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                    <Fragment key={l.id}>
+                      <tr className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                       <td className="px-5 py-3.5 text-slate-200">{l.full_name}</td>
                       <td className="px-5 py-3.5 text-slate-400">{l.email}</td>
                       <td className="px-5 py-3.5 text-slate-400">{l.role}</td>
                       <td className="px-5 py-3.5 text-slate-400">{l.location}</td>
                       <td className="px-5 py-3.5 text-slate-500 text-xs">{fmt(l.created_at)}</td>
                       <td className="px-5 py-3.5">
-                        <div className="flex flex-wrap gap-1.5" data-testid={`lead-pipeline-${l.id}`}>
+                        <div className="flex flex-wrap items-center gap-1.5" data-testid={`lead-pipeline-${l.id}`}>
                           {STATUSES.map((s) => (
                             <button
                               key={s}
@@ -275,9 +294,45 @@ export default function Admin() {
                               {STATUS_LABEL[s]}
                             </button>
                           ))}
+                          <button
+                            onClick={() => toggleNote(l)}
+                            data-testid={`lead-note-toggle-${l.id}`}
+                            title={a.noteAdd}
+                            className={`rounded-full border p-1.5 transition-all duration-200 ${
+                              l.note
+                                ? 'border-amber-400/50 text-amber-300 bg-amber-400/[0.08]'
+                                : 'border-white/[0.08] text-slate-600 hover:text-slate-300 hover:border-white/25'
+                            }`}
+                          >
+                            <StickyNote size={12} />
+                          </button>
                         </div>
                       </td>
-                    </tr>
+                      </tr>
+                      {noteOpen === l.id && (
+                        <tr className="border-b border-white/[0.04] bg-[#0B0E14]/60">
+                          <td colSpan={6} className="px-5 py-4">
+                            <div className="flex items-start gap-3 max-w-2xl">
+                              <textarea
+                                rows={2}
+                                value={noteDraft}
+                                onChange={(e) => setNoteDraft(e.target.value)}
+                                placeholder={a.notePh}
+                                className="flex-1 rounded-lg border border-white/10 bg-[#07090E] px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-400/60 transition-colors resize-none"
+                                data-testid={`lead-note-input-${l.id}`}
+                              />
+                              <button
+                                onClick={() => saveNote(l.id)}
+                                data-testid={`lead-note-save-${l.id}`}
+                                className="shrink-0 rounded-lg bg-amber-400 px-4 py-2.5 text-xs font-semibold text-[#07090E] hover:bg-amber-300 transition-colors duration-200"
+                              >
+                                {a.noteSave}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

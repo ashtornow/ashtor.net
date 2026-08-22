@@ -53,6 +53,11 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
   - preview: https://remote-connect-59.preview.emergentagent.com/api/auth/linkedin/callback
   - production: https://remote-connect-59.emergent.host/api/auth/linkedin/callback
 
+### 2026-08-22 (v2.6)
+- Alert email CONFIRMED working: delivery to info@ashtor.net accepted (202, id 3d909e7d) — MX records fixed by user
+- Lead Notes: PATCH /api/admin/leads/{id}/note (admin-only); admin leads rows have a note toggle (amber when a note exists) with inline editor + save
+- LinkedIn OAuth still blocked: "redirect_uri does not match the registered value" — user has NOT yet registered the redirect URLs in the LinkedIn app
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
