@@ -17,7 +17,7 @@ export const LogoMark = ({ size = 15, className = "text-emerald-400" }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2.2"
+    strokeWidth="2.6"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
@@ -26,14 +26,14 @@ export const LogoMark = ({ size = 15, className = "text-emerald-400" }) => (
     <path d="M3.5 7.5 L8 12 L3.5 16.5" />
     <motion.line
       x1="14.5"
-      y1="12"
+      y1="10.8"
       x2="20"
-      y2="11"
+      y2="12"
       variants={winkVariants}
       transition={{ type: 'spring', stiffness: 520, damping: 11 }}
     />
     <motion.path
-      d="M5.5 19 Q12 23.5 18.5 18"
+      d="M6 18.5 Q12 23 18 17.5"
       variants={mouthVariants}
       transition={{ type: 'spring', stiffness: 400, damping: 14 }}
       style={{ transformBox: 'fill-box', transformOrigin: 'top center' }}
@@ -46,9 +46,10 @@ export const LogoBox = ({ size = 15 }) => (
     initial="rest"
     animate="rest"
     whileHover="wink"
-    className="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center cursor-pointer group-hover:shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-shadow duration-300"
+    className="relative w-8 h-8 rounded-lg bg-[#0A100E] border border-emerald-400/60 flex items-center justify-center cursor-pointer shadow-[0_0_14px_rgba(16,185,129,0.4),inset_0_0_10px_rgba(16,185,129,0.12)] group-hover:shadow-[0_0_24px_rgba(16,185,129,0.65),inset_0_0_12px_rgba(16,185,129,0.2)] transition-shadow duration-300"
     data-testid="logo-wink-box"
   >
+    <span className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-br from-emerald-400/15 via-transparent to-emerald-500/10" />
     <LogoMark size={size} />
   </motion.span>
 );

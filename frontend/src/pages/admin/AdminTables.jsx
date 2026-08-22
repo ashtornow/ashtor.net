@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { BadgeCheck, StickyNote, Download, Reply } from 'lucide-react';
+import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2 } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
 
@@ -78,7 +78,7 @@ function LeadFilterBar({ a, leads, statusFilter, setStatusFilter, statusLabel, e
   );
 }
 
-function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, noteDraft, setNoteDraft, saveNote, fmt }) {
+function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, noteDraft, setNoteDraft, saveNote, fmt, filesOpen, toggleFiles, leadFiles, uploadingFile, onUploadAttachment, onDownloadFile, onDeleteFile }) {
   return (
     <Fragment>
       <tr className={bodyRow}>
@@ -123,6 +123,18 @@ function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, note
             >
               <Reply size={12} />
             </a>
+            <button
+              onClick={() => toggleFiles(lead)}
+              data-testid={`lead-files-toggle-${lead.id}`}
+              title={a.filesTitle}
+              className={`rounded-full border p-1.5 transition-all duration-200 ${
+                lead.cv_file_id || filesOpen === lead.id
+                  ? 'border-cyan-400/50 text-cyan-300 bg-cyan-400/[0.08]'
+                  : 'border-white/[0.08] text-slate-600 hover:text-slate-300 hover:border-white/25'
+              }`}
+            >
+              <Paperclip size={12} />
+            </button>
           </div>
         </td>
       </tr>
@@ -145,6 +157,62 @@ function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, note
               >
                 {a.noteSave}
               </button>
+            </div>
+          </td>
+        </tr>
+      )}
+      {filesOpen === lead.id && (
+        <tr className="border-b border-white/[0.04] bg-[#0B0E14]/60">
+          <td colSpan={6} className="px-5 py-4" data-testid={`lead-files-panel-${lead.id}`}>
+            <div className="max-w-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500">{a.filesTitle}</p>
+                <label
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-400/[0.15] cursor-pointer transition-all duration-200"
+                  data-testid={`lead-file-upload-${lead.id}`}
+                >
+                  {uploadingFile ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                  {a.fileUpload}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.csv"
+                    onChange={(e) => e.target.files[0] && onUploadAttachment(lead.id, e.target.files[0])}
+                    data-testid={`lead-file-input-${lead.id}`}
+                  />
+                </label>
+              </div>
+              {leadFiles === null ? (
+                <div className="flex items-center gap-2 text-xs text-slate-600"><Loader2 size={12} className="animate-spin" /></div>
+              ) : leadFiles.length === 0 ? (
+                <p className="text-xs text-slate-600" data-testid={`lead-files-empty-${lead.id}`}>{a.fileEmpty}</p>
+              ) : (
+                leadFiles.map((fl) => (
+                  <div key={fl.id} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-[#07090E] px-3.5 py-2.5" data-testid={`file-row-${fl.id}`}>
+                    <FileText size={13} className="text-cyan-400 shrink-0" />
+                    <span className="text-xs text-slate-300 truncate flex-1">{fl.original_filename}</span>
+                    {fl.kind === 'cv' && (
+                      <span className="font-mono-tech text-[8px] tracking-[0.2em] uppercase rounded-full border border-emerald-500/40 text-emerald-300 px-2 py-0.5">{a.fileCv}</span>
+                    )}
+                    <span className="text-[10px] text-slate-600">{Math.max(1, Math.round(fl.size / 1024))} KB</span>
+                    <button
+                      onClick={() => onDownloadFile(fl)}
+                      data-testid={`file-download-${fl.id}`}
+                      className="text-slate-500 hover:text-cyan-300 transition-colors"
+                    >
+                      <Download size={13} />
+                    </button>
+                    <button
+                      onClick={() => onDeleteFile(fl)}
+                      data-testid={`file-delete-${fl.id}`}
+                      title={a.fileDelete}
+                      className="text-slate-500 hover:text-red-300 transition-colors"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </td>
         </tr>

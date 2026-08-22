@@ -23,7 +23,7 @@ import jwt as pyjwt
 import httpx
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from authlib.jose import JsonWebKey, jwt as oidc_jwt
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -418,6 +418,11 @@ async def startup():
     await db.github_profiles.create_index("github_id", unique=True)
     await seed_admin()
     asyncio.create_task(weekly_digest_loop())
+    try:
+        await init_storage()
+        logger.info("Object storage initialized")
+    except Exception:
+        logger.exception("Object storage init failed")
 
 
 # ---------- public endpoints ----------
@@ -909,6 +914,139 @@ async def github_logout():
     response = Response(content='{"ok": true}', media_type="application/json")
     response.delete_cookie("github_session", path="/")
     return response
+
+
+# ---------- object storage (Emergent) ----------
+
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+STORAGE_APP = "ashtor"
+MAX_FILE_SIZE = 8 * 1024 * 1024
+CV_TYPES = {
+    "pdf": "application/pdf",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+ATTACH_TYPES = {**CV_TYPES, "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "txt": "text/plain", "csv": "text/csv"}
+
+_storage_key = None
+
+
+async def init_storage(force: bool = False) -> str:
+    global _storage_key
+    if _storage_key and not force:
+        return _storage_key
+    async with httpx.AsyncClient(timeout=30) as http:
+        resp = await http.post(f"{STORAGE_URL}/init", json={"emergent_key": os.environ["EMERGENT_LLM_KEY"]})
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+
+async def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=120) as http:
+        resp = await http.put(f"{STORAGE_URL}/objects/{path}",
+                              headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+        if resp.status_code == 404:
+            key = await init_storage(force=True)
+            resp = await http.put(f"{STORAGE_URL}/objects/{path}",
+                                  headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+    if resp.is_error:
+        logger.error(f"Storage upload failed: {resp.status_code} {resp.text[:200]}")
+        raise HTTPException(502, "File storage upload failed")
+    return resp.json()
+
+
+async def get_object(path: str):
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=60) as http:
+        resp = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+        if resp.status_code == 404:
+            key = await init_storage(force=True)
+            resp = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+    if resp.status_code == 404:
+        raise HTTPException(404, "File not found in storage")
+    if resp.is_error:
+        logger.error(f"Storage download failed: {resp.status_code}")
+        raise HTTPException(502, "File storage download failed")
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+async def _store_upload(file: UploadFile, allowed: dict, folder: str, lead_id: str, kind: str) -> dict:
+    name = file.filename or ""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext not in allowed:
+        raise HTTPException(422, "File type not allowed")
+    data = await file.read()
+    if not data:
+        raise HTTPException(422, "Empty file")
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(413, "File too large (max 8MB)")
+    result = await put_object(f"{STORAGE_APP}/{folder}/{uuid.uuid4()}.{ext}", data, allowed[ext])
+    rec = {
+        "id": str(uuid.uuid4()),
+        "lead_id": lead_id,
+        "kind": kind,
+        "storage_path": result["path"],
+        "original_filename": name,
+        "content_type": allowed[ext],
+        "size": result.get("size", len(data)),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.files.insert_one(dict(rec))
+    return rec
+
+
+@api_router.post("/leads/{lead_id}/cv")
+async def upload_lead_cv(lead_id: str, file: UploadFile = File(...)):
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    existing = await db.files.find_one({"lead_id": lead_id, "kind": "cv", "is_deleted": False})
+    rec = await _store_upload(file, CV_TYPES, "cv", lead_id, "cv")
+    if existing:
+        await db.files.update_one({"id": existing["id"]}, {"$set": {"is_deleted": True}})
+    await db.leads.update_one({"id": lead_id}, {"$set": {"cv_file_id": rec["id"]}})
+    return {"id": rec["id"], "filename": rec["original_filename"], "size": rec["size"]}
+
+
+@api_router.post("/admin/leads/{lead_id}/attachments")
+async def upload_lead_attachment(lead_id: str, file: UploadFile = File(...), admin=Depends(get_current_admin)):
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    rec = await _store_upload(file, ATTACH_TYPES, f"attachments/{lead_id}", lead_id, "attachment")
+    return {"id": rec["id"], "filename": rec["original_filename"], "size": rec["size"]}
+
+
+@api_router.get("/admin/leads/{lead_id}/files")
+async def list_lead_files(lead_id: str, admin=Depends(get_current_admin)):
+    return await db.files.find({"lead_id": lead_id, "is_deleted": False}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@api_router.get("/admin/files/{file_id}/download")
+async def download_lead_file(file_id: str, admin=Depends(get_current_admin)):
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not rec:
+        raise HTTPException(404, "File not found")
+    data, content_type = await get_object(rec["storage_path"])
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", rec.get("original_filename") or "file")
+    return Response(content=data, media_type=rec.get("content_type", content_type),
+                    headers={"Content-Disposition": f'attachment; filename="{safe_name}"'})
+
+
+@api_router.delete("/admin/files/{file_id}")
+async def delete_lead_file(file_id: str, admin=Depends(get_current_admin)):
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not rec:
+        raise HTTPException(404, "File not found")
+    await db.files.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
+    if rec.get("kind") == "cv":
+        await db.leads.update_one({"id": rec["lead_id"]}, {"$unset": {"cv_file_id": ""}})
+    return {"deleted": True}
 
 
 # ---------- AI: match streaming + chat ----------

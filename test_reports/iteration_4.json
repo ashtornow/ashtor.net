@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend E2E tests for Emergent Object Storage integration (CV upload flow + admin files panel) and new logo. All 5 requested test areas PASSED. (1) Logo: new glowing badge with wink (logo-wink-box) renders in navbar, hover triggers wink animation without console errors. (2) Client-side CV validation: setting a .txt file on lead-form-cv-input correctly rejects it — no lead-form-cv-clear button appears and toast 'Only PDF or DOC/DOCX files up to 8MB' is shown. (3) Lead form CV flow: filled contact form with valid /app/test_reports/tmp_cv.pdf, filename displayed in picker + lead-form-cv-clear visible, submit produced success toast 'Connection initialized. Our routing team will contact you within 24h.' Verified via GET /api/admin/leads that the new lead ef2d1eef-f4b9-4300-bf56-2084e3912e08 (test_cv_1787434776@ashtor.net) has cv_file_id=52913f18-8e85-4200-89e1-1d47441781e7 set. (4) Regression: submit WITHOUT CV also succeeded (lead TEST_NoCV User created, visible in admin). (5) Admin files panel: admin login successful, paperclip toggle (lead-files-toggle-{id}) opens lead-files-panel-{id}, upload via lead-file-input-{id} added a row (rows went 0→2 including CV + attachment), download button triggered a real download (suggested_filename=tmp_cv.pdf via expect_download), delete button removed a row (2→1). Hero counter and stories/landing render fine.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/tmp_cv.pdf (helper)",
+    "/app/test_reports/bad.txt (helper for invalid-type test)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminTables.jsx LeadRow: after opening files panel there is a brief moment where 'No files yet' is shown before the async fetch resolves (leadFiles defaults to []). Minor UX — consider a lightweight 'Loading…' state while files are being fetched to avoid flashing the empty state.",
+    "LeadForm.jsx: after successful submit the form resets but the CV file input reference is not explicitly cleared via ref.value=''; behavior is fine because the picker is unmounted/reset via state, but re-selecting the same file after a submit could fail to fire onChange in some browsers. Consider resetting input.value.",
+    "Delete file in admin panel does not show a confirm dialog; a single click deletes irreversibly. Consider a confirm() or inline confirm state to avoid accidental deletes."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (5/5 scenarios)"},
+  "test_credentials": "admin@ashtor.net / AshtorAdmin#2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 2 leads via UI: (1) TEST_CV E2E 1787434776 <test_cv_1787434776@ashtor.net> id=ef2d1eef-f4b9-4300-bf56-2084e3912e08 WITH cv_file_id set (used for admin files panel test), (2) TEST_NoCV User <test_nocv_1787434783@ashtor.net> without CV (regression smoke). One extra attachment (tmp_cv.pdf) uploaded then deleted from lead ef2d1e via admin panel.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Object storage flows verified via UI. Public URL https://remote-connect-59.preview.emergentagent.com. Note: page.wait_for_load_state('networkidle') times out on this site (likely websocket) — use wait_for_selector on '#contact' instead. lead-form-cv-input is hidden (class='hidden') so use state='attached' with wait_for_selector before set_input_files, or skip the wait entirely. Panel briefly shows 'No files yet' before async file list loads — add wait_for_timeout(1000) or poll for file-row-* count after opening. Toast success text is 'Connection initialized. Our routing team will contact you within 24h.' (EN) — do not assert on 'Thanks'. LEAD_ID with CV available for future tests: ef2d1eef-f4b9-4300-bf56-2084e3912e08.",
+  "rca of the issue": "N/A — no bugs found."
+}

@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Paperclip, X } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const CV_EXTS = ['pdf', 'doc', 'docx'];
 
 export default function LeadForm() {
   const { lang, t } = useLanguage();
   const f = t.form;
   const [form, setForm] = useState({ role: 0, full_name: '', email: '', skills_or_needs: '', location: '' });
+  const [cvFile, setCvFile] = useState(null);
   const [sending, setSending] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
@@ -21,11 +23,23 @@ export default function LeadForm() {
     return () => window.removeEventListener('ashtor:prefill', handler);
   }, []);
 
+  const onPickCv = (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!CV_EXTS.includes(ext) || file.size > 8 * 1024 * 1024) {
+      toast.error(f.cvBad);
+      return;
+    }
+    setCvFile(file);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setSending(true);
     try {
-      await axios.post(`${API}/leads`, {
+      const r = await axios.post(`${API}/leads`, {
         role: f.roles[form.role],
         full_name: form.full_name,
         email: form.email,
@@ -33,8 +47,19 @@ export default function LeadForm() {
         location: form.location,
         language: lang,
       });
+      if (cvFile) {
+        try {
+          const fd = new FormData();
+          fd.append('file', cvFile);
+          await axios.post(`${API}/leads/${r.data.id}/cv`, fd);
+        } catch (err) {
+          console.error('LeadForm: CV upload failed', err);
+          toast.error(f.cvError);
+        }
+      }
       toast.success(f.success);
       setForm({ role: form.role, full_name: '', email: '', skills_or_needs: '', location: '' });
+      setCvFile(null);
     } catch (err) {
       toast.error(f.error);
     } finally {
@@ -160,6 +185,39 @@ export default function LeadForm() {
                 className={inputCls}
                 data-testid="lead-form-location-input"
               />
+            </div>
+
+            <div>
+              <label className="block font-mono-tech text-[10px] tracking-[0.25em] uppercase text-slate-500 mb-2">
+                {f.cvLabel}
+              </label>
+              <div className="flex items-center gap-3">
+                <label
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#0B0E14] px-4 py-3 text-sm text-slate-300 cursor-pointer hover:border-emerald-500/50 hover:text-emerald-300 transition-all duration-300"
+                  data-testid="lead-form-cv-picker"
+                >
+                  <Paperclip size={14} className="text-emerald-400" />
+                  <span className="truncate max-w-[220px]">{cvFile ? cvFile.name : f.cvButton}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                    onChange={onPickCv}
+                    data-testid="lead-form-cv-input"
+                  />
+                </label>
+                {cvFile && (
+                  <button
+                    type="button"
+                    onClick={() => setCvFile(null)}
+                    data-testid="lead-form-cv-clear"
+                    className="text-slate-500 hover:text-red-300 transition-colors"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+              <p className="mt-1.5 text-[11px] text-slate-600">{f.cvHint}</p>
             </div>
 
             <button

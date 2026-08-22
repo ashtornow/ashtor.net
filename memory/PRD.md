@@ -87,6 +87,12 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Lead Reply: mailto reply button per lead row in admin (lead-reply-{id}) with pre-written subject+body in the lead's language (ES/EN templates in AdminTables.jsx)
 - Tested by testing_agent: 18/18 backend + full frontend E2E pass (/app/test_reports/iteration_3.json)
 
+### 2026-08-22 (v2.12)
+- New logo: glowing rounded badge with wink mark (Logo.jsx LogoBox restyled to match user's provided design) + matching favicon.svg with glow filter. Hover wink animation preserved
+- Emergent Object Storage integration (playbook via integration_expert, EMERGENT_LLM_KEY, INTEGRATION_PROXY_URL fallback): async init/put/get helpers with 404 key re-init; db.files collection (soft delete). Endpoints: POST /api/leads/{id}/cv (public, PDF/DOC/DOCX max 8MB, replaces previous CV safely — fixed order bug where invalid upload soft-deleted existing CV before validation), POST /api/admin/leads/{id}/attachments (admin, +png/jpg/txt/csv), GET /api/admin/leads/{id}/files, GET /api/admin/files/{id}/download (auth, content-disposition), DELETE /api/admin/files/{id} (soft delete, unsets lead.cv_file_id)
+- Frontend: CV picker in lead form (client-side type/size validation, uploads after lead create); admin files panel per lead (paperclip toggle, upload, download blob, delete with confirm, loading state, CV tag)
+- Tested: backend curl E2E (upload/validation/download/delete/auth) + testing_agent frontend 5/5 pass (/app/test_reports/iteration_4.json)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

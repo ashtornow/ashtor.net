@@ -21,6 +21,9 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [noteOpen, setNoteOpen] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [filesOpen, setFilesOpen] = useState(null);
+  const [leadFiles, setLeadFiles] = useState([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [digestSending, setDigestSending] = useState(false);
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
@@ -99,6 +102,69 @@ export default function Admin() {
   const toggleNote = (l) => {
     setNoteOpen(noteOpen === l.id ? null : l.id);
     setNoteDraft(l.note || '');
+  };
+
+  const fetchLeadFiles = async (leadId) => {
+    try {
+      const r = await axios.get(`${API}/admin/leads/${leadId}/files`, creds);
+      setLeadFiles(r.data);
+    } catch (err) {
+      console.error('Admin: failed to load lead files', err);
+    }
+  };
+
+  const toggleFiles = async (l) => {
+    if (filesOpen === l.id) {
+      setFilesOpen(null);
+      return;
+    }
+    setFilesOpen(l.id);
+    setLeadFiles(null);
+    await fetchLeadFiles(l.id);
+  };
+
+  const uploadAttachment = async (leadId, file) => {
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await axios.post(`${API}/admin/leads/${leadId}/attachments`, fd, creds);
+      await fetchLeadFiles(leadId);
+      toast.success(a.fileUploaded);
+    } catch (err) {
+      console.error('Admin: attachment upload failed', err);
+      toast.error(a.fileError);
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const downloadFile = async (f) => {
+    const res = await fetch(`${API}/admin/files/${f.id}/download`, { credentials: 'include' });
+    if (!res.ok) {
+      console.error('Admin: file download failed', res.status);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = f.original_filename || 'file';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const deleteFile = async (f) => {
+    if (!window.confirm(a.fileDeleteConfirm)) return;
+    try {
+      await axios.delete(`${API}/admin/files/${f.id}`, creds);
+      setLeadFiles((fs) => fs.filter((x) => x.id !== f.id));
+      if (f.kind === 'cv') {
+        setLeads((ls) => ls.map((l) => (l.id === f.lead_id ? { ...l, cv_file_id: undefined } : l)));
+      }
+    } catch (err) {
+      console.error('Admin: file delete failed', err);
+    }
   };
 
   const saveNote = async (leadId) => {
@@ -249,6 +315,13 @@ export default function Admin() {
               toggleNote={toggleNote}
               saveNote={saveNote}
               exportCsv={exportCsv}
+              filesOpen={filesOpen}
+              toggleFiles={toggleFiles}
+              leadFiles={leadFiles}
+              uploadingFile={uploadingFile}
+              onUploadAttachment={uploadAttachment}
+              onDownloadFile={downloadFile}
+              onDeleteFile={deleteFile}
               fmt={fmt}
             />
           )}

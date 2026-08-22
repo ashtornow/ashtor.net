@@ -1,9 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0B0E14"/>
-  <rect x="2" y="2" width="60" height="60" rx="12.5" fill="none" stroke="#10B981" stroke-opacity="0.45" stroke-width="2"/>
-  <g fill="none" stroke="#10B981" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M11 20 L23 32 L11 44"/>
-    <line x1="39" y1="32" x2="54" y2="29"/>
-    <path d="M14 51 Q32 62 50 48"/>
+  <defs>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6EF7C5"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0A100E"/>
+  <rect x="2" y="2" width="60" height="60" rx="14.5" fill="none" stroke="url(#edge)" stroke-opacity="0.9" stroke-width="2.5" filter="url(#glow)"/>
+  <g fill="none" stroke="#2EE6A0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M13 20 L24 31 L13 42"/>
+    <line x1="37" y1="29" x2="52" y2="32"/>
+    <path d="M17 48 Q32 58 48 46"/>
   </g>
 </svg>
