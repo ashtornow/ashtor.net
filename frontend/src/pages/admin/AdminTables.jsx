@@ -1,7 +1,35 @@
 import { Fragment } from 'react';
-import { BadgeCheck, StickyNote, Download } from 'lucide-react';
+import { BadgeCheck, StickyNote, Download, Reply } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
+
+const REPLY_TEMPLATES = {
+  en: {
+    subject: 'Ashtor.net — following up on your intake',
+    body: (l) => `Hi ${l.full_name},
+
+Thanks for reaching out to Ashtor.net. I reviewed your intake (${l.role}) and would love to schedule a quick call to discuss next steps.
+
+Best,
+Ashtor.net Team
+info@ashtor.net`,
+  },
+  es: {
+    subject: 'Ashtor.net — seguimiento de tu registro',
+    body: (l) => `Hola ${l.full_name},
+
+Gracias por escribirnos en Ashtor.net. Revisé tu registro (${l.role}) y me encantaría agendar una llamada breve para conversar los siguientes pasos.
+
+Saludos,
+Equipo Ashtor.net
+info@ashtor.net`,
+  },
+};
+
+const mailtoFor = (l) => {
+  const tpl = REPLY_TEMPLATES[l.language === 'es' ? 'es' : 'en'];
+  return `mailto:${l.email}?subject=${encodeURIComponent(tpl.subject)}&body=${encodeURIComponent(tpl.body(l))}`;
+};
 
 export const STATUS_STYLE = {
   new: 'border-slate-400/40 text-slate-200 bg-white/[0.06]',
@@ -87,6 +115,14 @@ function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, note
             >
               <StickyNote size={12} />
             </button>
+            <a
+              href={mailtoFor(lead)}
+              data-testid={`lead-reply-${lead.id}`}
+              title={a.replyTitle}
+              className="rounded-full border border-white/[0.08] p-1.5 text-slate-600 hover:text-cyan-300 hover:border-cyan-400/50 transition-all duration-200"
+            >
+              <Reply size={12} />
+            </a>
           </div>
         </td>
       </tr>

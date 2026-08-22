@@ -172,14 +172,14 @@ async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
         raise HTTPException(status_code=500, detail="Failed to send email")
 
 
-def _alert_html(title: str, rows: list) -> str:
+def _alert_html(title: str, rows: list, cta_url: str = None, cta_label: str = "Open Command Center") -> str:
     cells = "".join(
         f'<tr><td style="padding:6px 12px;font-size:12px;color:#94A3B8;text-transform:uppercase;'
         f'letter-spacing:1px">{escape(k)}</td>'
         f'<td style="padding:6px 12px;font-size:14px;color:#F8FAFC">{escape(str(v))}</td></tr>'
         for k, v in rows
     )
-    admin_url = f"{FRONTEND_URL}/admin"
+    cta_url = cta_url or f"{FRONTEND_URL}/admin"
     return (
         '<table role="presentation" width="100%" style="background:#07090E;padding:32px 0"><tr><td align="center">'
         '<table role="presentation" width="520" style="background:#111620;border:1px solid #1E293B;'
@@ -187,9 +187,9 @@ def _alert_html(title: str, rows: list) -> str:
         f'<tr><td style="font-size:11px;color:#10B981;letter-spacing:3px;padding-bottom:8px">ASHTOR.NET // INTAKE SIGNAL</td></tr>'
         f'<tr><td style="font-size:20px;color:#F8FAFC;font-weight:bold;padding-bottom:16px">{escape(title)}</td></tr>'
         f'<tr><td><table role="presentation" width="100%" style="border-top:1px solid #1E293B">{cells}</table></td></tr>'
-        f'<tr><td style="padding-top:20px"><a href="{admin_url}" style="display:inline-block;background:#10B981;'
+        f'<tr><td style="padding-top:20px"><a href="{cta_url}" style="display:inline-block;background:#10B981;'
         'color:#07090E;font-size:13px;font-weight:bold;padding:10px 22px;border-radius:999px;'
-        'text-decoration:none">Open Command Center</a></td></tr>'
+        f'text-decoration:none">{escape(cta_label)}</a></td></tr>'
         f'<tr><td style="padding-top:20px;font-size:11px;color:#64748B">Sent by {escape(EMAIL_FROM_NAME)}. '
         'We never ask for your password or card details by email.</td></tr>'
         '</table></td></tr></table>'
@@ -348,6 +348,12 @@ class ChatIn(BaseModel):
     language: str = "en"
 
 
+class MatchEmailIn(BaseModel):
+    email: str
+    language: str = "en"
+    report: dict
+
+
 # ---------- auth helpers ----------
 
 def hash_password(password: str) -> str:
@@ -443,6 +449,75 @@ async def create_lead(input: LeadCreate):
 
 
 PROVIDER_DOMAINS = {"linkedin": "linkedin.com", "github": "github.com"}
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_REPORT_KEYS = ("fit_score", "headline", "summary", "suggested_roles", "salary_range_usd", "skills_gap", "next_step")
+
+
+def _clip(value, limit: int = 400) -> str:
+    return str(value)[:limit]
+
+
+async def _check_match_email_rate(ident: str, now: datetime) -> None:
+    rec = await db.email_requests.find_one({"identifier": ident})
+    if not rec:
+        return
+    first = datetime.fromisoformat(rec["first_at"])
+    if (now - first) >= timedelta(hours=1):
+        await db.email_requests.delete_one({"identifier": ident})
+        return
+    if rec.get("count", 0) >= 3:
+        raise HTTPException(429, "Too many report emails. Try again later.")
+
+
+@api_router.post("/ai-match/email")
+async def email_match_report(input: MatchEmailIn, request: Request):
+    email = input.email.strip()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(422, "Invalid email address")
+    r = input.report
+    if not all(k in r for k in _REPORT_KEYS):
+        raise HTTPException(422, "Incomplete report")
+    try:
+        fit_score = max(0, min(100, int(r["fit_score"])))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Invalid fit score")
+
+    ident_ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+                or (request.client.host if request.client else "unknown"))
+    ident = f"match_email:{ident_ip}"
+    now = datetime.now(timezone.utc)
+    await _check_match_email_rate(ident, now)
+
+    es = input.language == "es"
+    roles = r["suggested_roles"] if isinstance(r["suggested_roles"], list) else [r["suggested_roles"]]
+    gaps = r["skills_gap"] if isinstance(r["skills_gap"], list) else [r["skills_gap"]]
+    rows = [
+        ("Fit Score", f"{fit_score}/100"),
+        ("Titular" if es else "Headline", _clip(r["headline"], 150)),
+        ("Resumen" if es else "Summary", _clip(r["summary"])),
+        ("Roles sugeridos" if es else "Suggested Roles", _clip(", ".join(map(str, roles[:5])))),
+        ("Banda salarial (USD)" if es else "Salary Band (USD)", _clip(r["salary_range_usd"], 60)),
+        ("Señales a reforzar" if es else "Signals to Strengthen", _clip(", ".join(map(str, gaps[:5])))),
+        ("Siguiente paso" if es else "Next Step", _clip(r["next_step"])),
+    ]
+    await send_email(
+        to=email,
+        subject="Tu informe AI Match — Ashtor.net" if es else "Your AI Match Report — Ashtor.net",
+        html=_alert_html(
+            "Informe AI Match" if es else "AI Match Report",
+            rows,
+            cta_url=f"{_request_base(request)}/#contact",
+            cta_label="Aplica ahora" if es else "Apply now",
+        ),
+    )
+    await db.email_requests.update_one(
+        {"identifier": ident},
+        {"$inc": {"count": 1}, "$setOnInsert": {"first_at": now.isoformat()}},
+        upsert=True,
+    )
+    return {"sent": True}
 
 
 @api_router.post("/social-connect", response_model=SocialConnect)

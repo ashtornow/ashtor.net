@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Sparkles, Target, DollarSign, TrendingUp, ArrowRight, ScanSearch } from 'lucide-react';
+import { Sparkles, Target, DollarSign, TrendingUp, ArrowRight, ScanSearch, Mail, Check, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 import { streamPost } from '@/lib/sse';
 
@@ -15,6 +16,9 @@ export default function AiMatch() {
   const [phase, setPhase] = useState('idle');
   const [feed, setFeed] = useState('');
   const [result, setResult] = useState(null);
+  const [emailTo, setEmailTo] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
   const feedRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +30,7 @@ export default function AiMatch() {
     setPhase('running');
     setFeed('');
     setResult(null);
+    setReportSent(false);
     let finalResult = null;
     let failed = false;
     try {
@@ -47,6 +52,21 @@ export default function AiMatch() {
     } else {
       setResult(finalResult);
       setPhase('done');
+    }
+  };
+
+  const sendReport = async () => {
+    if (!emailTo.trim() || sendingReport) return;
+    setSendingReport(true);
+    try {
+      await axios.post(`${API}/ai-match/email`, { email: emailTo.trim(), language: lang, report: result });
+      setReportSent(true);
+      toast.success(a.emailSent);
+    } catch (err) {
+      console.error('AiMatch: report email failed', err);
+      toast.error(err.response?.status === 429 ? a.emailRate : a.emailError);
+    } finally {
+      setSendingReport(false);
     }
   };
 
@@ -274,6 +294,38 @@ export default function AiMatch() {
                       <p className="font-mono-tech text-[9px] tracking-[0.25em] uppercase text-emerald-400 mb-1">{a.nextStep}</p>
                       <p className="text-sm text-slate-300">{result.next_step}</p>
                     </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.07] bg-[#0B0E14] p-4" data-testid="ai-email-report-box">
+                    <p className="font-mono-tech text-[9px] tracking-[0.25em] uppercase text-slate-500 mb-2.5 flex items-center gap-1.5">
+                      <Mail size={11} className="text-cyan-400" /> {a.emailLabel}
+                    </p>
+                    {reportSent ? (
+                      <p className="flex items-center gap-2 text-xs text-emerald-300" data-testid="ai-email-sent">
+                        <Check size={13} className="text-emerald-400" /> {a.emailSent}
+                      </p>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <input
+                          type="email"
+                          value={emailTo}
+                          onChange={(e) => setEmailTo(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && sendReport()}
+                          placeholder={a.emailPh}
+                          className="flex-1 rounded-lg border border-white/10 bg-[#07090E] px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-cyan-400/60 transition-colors"
+                          data-testid="ai-email-input"
+                        />
+                        <button
+                          onClick={sendReport}
+                          disabled={sendingReport || !emailTo.trim()}
+                          data-testid="ai-email-send-button"
+                          className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-2.5 text-xs font-semibold text-[#07090E] hover:bg-cyan-400 disabled:opacity-50 transition-all duration-300"
+                        >
+                          {sendingReport ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
+                          {sendingReport ? a.emailSending : a.emailSend}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p className="font-mono-tech text-[9px] tracking-[0.15em] uppercase text-slate-600 text-center">{a.disclaimer}</p>

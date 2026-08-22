@@ -1,0 +1,27 @@
+{
+  "summary": "Tested both new features end-to-end. Backend: 6 new validation tests for POST /api/ai-match/email all pass (invalid email format 422, empty email 422, missing report keys 422, invalid fit_score 422, empty report 422, missing report field pydantic 422). Existing suite intact — test_new_features.py 12/12 + test_ai_match_email.py 6/6 = 18/18 without regression file. Frontend E2E: AI Match streaming produced report (fit_score=94) in ~15s; email box appears; invalid 'bad' input → axios 422 + toast 'Could not send the report. Try again.'; valid test@ashtor.net → ai-email-sent confirmation ' Report sent — check your inbox' replaces input (1 REAL email sent — within budget). Admin: login works, 4 tab cards render (leads=6, linkedin=18, verified=0, github=0), Export CSV button present, note toggle opens/saves. Lead-reply anchors: 6 present, all mailto: hrefs. ES lead (TEST_ES Diego, language='es') → subject 'Ashtor.net — seguimiento de tu registro', body starts 'Hola TEST_ES Diego,' + 'Gracias por escribirnos' + 'Equipo Ashtor.net' — PASS. EN lead (TEST_Regress User, language='en') → subject 'Ashtor.net — following up on your intake', body starts 'Hi TEST_Regress User,' + 'Thanks for reaching out' — PASS. No regressions.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ai_match_email.py",
+    "/app/test_reports/pytest/ai_match_email.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MatchEmailIn.email uses str (not EmailStr) — validation is done via _EMAIL_RE which is fine but pydantic EmailStr would be more idiomatic; current approach still correctly returns 422.",
+    "email_match_report returns {sent: True} even if downstream send_email fails silently (fire-and-forget). Consider awaiting result and reflecting actual send status.",
+    "Rate limit key uses request.client.host — behind ingress this is likely the proxy IP; consider X-Forwarded-For. This can group all users behind same egress and cause false 429s.",
+    "AiMatch.jsx sendReport treats all axios errors identically — 429 rate limit and 422 validation both show generic 'Could not send the report.' A distinct message for 429 would help UX.",
+    "server.py now 1050 lines — still >700; router split (auth/admin/leads/email/ai) recommended in follow-up."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_match_email.py (new — 6 validation tests)"
+  ],
+  "success_rate": {"backend": "100% (18/18 excluding digest which sends real email)", "frontend": "100%"},
+  "test_credentials": "admin@ashtor.net / AshtorAdmin#2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "1 ES lead created via curl: TEST_ES Diego <test_es_diego@ashtor.net>, role=talent, language=es (to verify ES mailto template). 1 real AI Match report email sent to test@ashtor.net via UI (within budget: iteration_1/2 + this = ~2 successful sends from pod IP, still under 3/hr limit).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Actual admin tab data-testids are admin-tab-leads / admin-tab-linkedin / admin-tab-verified / admin-tab-github (NOT verified-github/social). Rate limit for /api/ai-match/email is 3 successes per IP per hour; from this pod IP roughly 2 have been consumed across iterations — verify before adding more real sends. Do NOT run test_regression.py::test_admin_digest_send_once repeatedly (sends real digest email each time). Backend tests: `python -m pytest backend/tests/test_new_features.py backend/tests/test_ai_match_email.py -o addopts='' -q` → 18/18 safe to rerun.",
+  "rca of the issue": "N/A — no issues found."
+}

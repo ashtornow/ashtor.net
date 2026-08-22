@@ -82,6 +82,11 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - REJECTED as false positives: "secrets" in server.py (public OAuth URLs) and i18n.js (UI labels); `is None` comparisons (correct Python); localStorage in ConnectSocial (only public demo display data, real sessions use httpOnly cookies); hook deps (module-level constants don't belong in deps); TSX migration + ChatWidget/AiMatch full rewrite (high risk, deferred)
 - Regression tested by testing_agent: 29/29 backend + 100% frontend (/app/test_reports/iteration_2.json). Note: tests changed lead "Diego Ruiz" status to contacted and added a TEST note
 
+### 2026-08-22 (v2.11)
+- Match Save: POST /api/ai-match/email (email regex + report validation, 3/IP/hour rate limit via db.email_requests using x-forwarded-for, branded ES/EN email with "Apply now" CTA derived from request host); AiMatch report card has email box (ai-email-input/ai-email-send-button) with sent confirmation and 429-specific toast
+- Lead Reply: mailto reply button per lead row in admin (lead-reply-{id}) with pre-written subject+body in the lead's language (ES/EN templates in AdminTables.jsx)
+- Tested by testing_agent: 18/18 backend + full frontend E2E pass (/app/test_reports/iteration_3.json)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
