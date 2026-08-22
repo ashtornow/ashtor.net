@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Terminal, ShieldCheck, LogOut, Users, Linkedin, BadgeCheck, Loader2, StickyNote } from 'lucide-react';
+import { Terminal, ShieldCheck, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, StickyNote, Download } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -30,6 +30,7 @@ export default function Admin() {
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
+  const [gh, setGh] = useState([]);
 
   const STATUS_LABEL = {
     new: a.statusNew,
@@ -56,14 +57,16 @@ export default function Admin() {
     if (!user) return;
     (async () => {
       try {
-        const [l, c, v] = await Promise.all([
+        const [l, c, v, g] = await Promise.all([
           axios.get(`${API}/admin/leads`, creds),
           axios.get(`${API}/admin/social-connections`, creds),
           axios.get(`${API}/admin/linkedin-profiles`, creds),
+          axios.get(`${API}/admin/github-profiles`, creds),
         ]);
         setLeads(l.data);
         setConns(c.data);
         setVerified(v.data);
+        setGh(g.data);
       } catch {}
     })();
   }, [user]);
@@ -112,6 +115,18 @@ export default function Admin() {
     } catch {
       setLeads(prev);
     }
+  };
+
+  const exportCsv = async () => {
+    const res = await fetch(`${API}/admin/leads/export`, { credentials: 'include' });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ashtor_leads.csv';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const fmt = (d) => {
@@ -187,6 +202,7 @@ export default function Admin() {
     { key: 'leads', label: a.tabLeads, Icon: Users, count: leads.length },
     { key: 'linkedin', label: a.tabLinkedin, Icon: Linkedin, count: conns.length },
     { key: 'verified', label: a.tabVerified, Icon: BadgeCheck, count: verified.length },
+    { key: 'github', label: a.tabGithub, Icon: Github, count: gh.length },
   ];
 
   return (
@@ -212,7 +228,7 @@ export default function Admin() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {tabs.map(({ key, label, Icon, count }) => (
             <button
               key={key}
@@ -236,7 +252,7 @@ export default function Admin() {
         <div className="rounded-2xl border border-white/[0.07] bg-[#111620]/70 overflow-hidden">
           {tab === 'leads' && (
             <div className="overflow-x-auto" data-testid="admin-leads-table">
-              <div className="flex flex-wrap gap-1.5 px-5 py-3.5 border-b border-white/[0.07]" data-testid="lead-filter-bar">
+              <div className="flex flex-wrap items-center gap-1.5 px-5 py-3.5 border-b border-white/[0.07]" data-testid="lead-filter-bar">
                 {['all', ...STATUSES].map((s) => (
                   <button
                     key={s}
@@ -254,6 +270,14 @@ export default function Admin() {
                     </span>
                   </button>
                 ))}
+                <button
+                  onClick={exportCsv}
+                  data-testid="admin-export-csv-button"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/[0.07] px-3.5 py-1.5 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/[0.15] transition-all duration-200"
+                >
+                  <Download size={11} />
+                  {a.exportCsv}
+                </button>
               </div>
               <table className="w-full text-sm">
                 <thead>
@@ -399,6 +423,44 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 text-xs">{fmt(v.verified_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {tab === 'github' && (
+            <div className="overflow-x-auto" data-testid="admin-github-table">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/[0.07] font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500">
+                    <th className="text-left px-5 py-3.5">{a.colName}</th>
+                    <th className="text-left px-5 py-3.5">{a.colUsername}</th>
+                    <th className="text-left px-5 py-3.5">{a.colRepos}</th>
+                    <th className="text-left px-5 py-3.5">{a.colStatus}</th>
+                    <th className="text-left px-5 py-3.5">{a.colDate}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gh.length === 0 && (
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-600 text-xs">{a.empty}</td></tr>
+                  )}
+                  {gh.map((g) => (
+                    <tr key={g.github_id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-3.5 text-slate-200 flex items-center gap-2.5">
+                        {g.avatar_url && <img src={g.avatar_url} alt="" className="w-6 h-6 rounded-full" />}
+                        {g.name || '—'}
+                      </td>
+                      <td className="px-5 py-3.5 text-cyan-400 text-xs">
+                        <a href={g.profile_url} target="_blank" rel="noreferrer" className="hover:underline">@{g.username}</a>
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-400">{g.public_repos}</td>
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center gap-1 text-emerald-400 text-xs">
+                          <BadgeCheck size={12} /> OAuth
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-500 text-xs">{fmt(g.verified_at)}</td>
                     </tr>
                   ))}
                 </tbody>

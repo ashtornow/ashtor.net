@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -14,6 +14,12 @@ export default function LeadForm() {
   const [sending, setSending] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  useEffect(() => {
+    const handler = (e) => setForm((f) => ({ ...f, skills_or_needs: e.detail.skills }));
+    window.addEventListener('ashtor:prefill', handler);
+    return () => window.removeEventListener('ashtor:prefill', handler);
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();

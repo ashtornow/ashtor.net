@@ -9,6 +9,7 @@ import Hero from "@/components/Hero";
 import Marquee from "@/components/Marquee";
 import Manifesto from "@/components/Manifesto";
 import Specializations from "@/components/Specializations";
+import SuccessStories from "@/components/SuccessStories";
 import Pathways from "@/components/Pathways";
 import AiMatch from "@/components/AiMatch";
 import LeadForm from "@/components/LeadForm";
@@ -25,6 +26,7 @@ const Landing = () => (
       <Marquee />
       <Manifesto />
       <Specializations />
+      <SuccessStories />
       <Pathways />
       <AiMatch />
       <LeadForm />

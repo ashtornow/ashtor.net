@@ -1,5 +1,7 @@
 import os
 import re
+import csv
+import io
 import json
 import uuid
 import secrets
@@ -52,6 +54,13 @@ LINKEDIN_AUTH = "https://www.linkedin.com/oauth/v2/authorization"
 LINKEDIN_TOKEN = "https://www.linkedin.com/oauth/v2/accessToken"
 LINKEDIN_USERINFO = "https://api.linkedin.com/v2/userinfo"
 LINKEDIN_DISCOVERY = "https://www.linkedin.com/oauth/.well-known/openid-configuration"
+
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "")
+GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "")
+GITHUB_AUTH = "https://github.com/login/oauth/authorize"
+GITHUB_TOKEN = "https://github.com/login/oauth/access_token"
+GITHUB_USER_API = "https://api.github.com/user"
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -333,6 +342,7 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier")
     await db.linkedin_profiles.create_index("sub", unique=True)
+    await db.github_profiles.create_index("github_id", unique=True)
     await seed_admin()
 
 
@@ -353,10 +363,14 @@ async def create_lead(input: LeadCreate):
     return lead
 
 
+PROVIDER_DOMAINS = {"linkedin": "linkedin.com", "github": "github.com"}
+
+
 @api_router.post("/social-connect", response_model=SocialConnect)
 async def create_social_connect(input: SocialConnectCreate):
-    if 'linkedin.com' not in input.profile_url:
-        raise HTTPException(status_code=422, detail="Invalid LinkedIn profile URL")
+    domain = PROVIDER_DOMAINS.get(input.provider)
+    if not domain or domain not in input.profile_url:
+        raise HTTPException(status_code=422, detail="Invalid profile URL for provider")
     conn = SocialConnect(**input.model_dump())
     doc = conn.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -419,6 +433,31 @@ async def admin_social(admin=Depends(get_current_admin)):
 @api_router.get("/admin/linkedin-profiles")
 async def admin_linkedin(admin=Depends(get_current_admin)):
     return await db.linkedin_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+@api_router.get("/admin/github-profiles")
+async def admin_github(admin=Depends(get_current_admin)):
+    return await db.github_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+@api_router.get("/admin/leads/export")
+async def admin_export_leads(admin=Depends(get_current_admin)):
+    leads = await db.leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(10000)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["created_at", "full_name", "email", "role", "skills_or_needs",
+                     "location", "language", "status", "note"])
+    for l in leads:
+        writer.writerow([
+            l.get("created_at", ""), l.get("full_name", ""), l.get("email", ""),
+            l.get("role", ""), l.get("skills_or_needs", ""), l.get("location", ""),
+            l.get("language", ""), l.get("status", "new"), l.get("note", ""),
+        ])
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=ashtor_leads.csv"},
+    )
 
 
 class LeadStatusIn(BaseModel):
@@ -580,6 +619,112 @@ async def linkedin_me(request: Request):
 async def linkedin_logout():
     response = Response(content='{"ok": true}', media_type="application/json")
     response.delete_cookie("app_session", path="/")
+    return response
+
+
+# ---------- GitHub OAuth ----------
+
+def github_configured() -> bool:
+    return bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
+
+
+@api_router.get("/auth/github/status")
+async def github_status():
+    return {"configured": github_configured()}
+
+
+@api_router.get("/auth/github/start")
+async def github_start():
+    if not github_configured():
+        raise HTTPException(503, "GitHub OAuth not configured")
+    state = secrets.token_urlsafe(32)
+    query = urlencode({
+        "client_id": GITHUB_CLIENT_ID,
+        "redirect_uri": GITHUB_REDIRECT_URI,
+        "scope": "read:user",
+        "state": state,
+    })
+    response = RedirectResponse(f"{GITHUB_AUTH}?{query}", status_code=302)
+    response.set_cookie("github_oauth", signed({"state": state}),
+                        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/github")
+    return response
+
+
+@api_router.get("/auth/github/callback")
+async def github_callback(request: Request, code: str = None, state: str = None, error: str = None):
+    if error:
+        return RedirectResponse(f"{FRONTEND_URL}/?github_error=denied")
+    if not code or not state:
+        raise HTTPException(400, "Missing OAuth code or state")
+    raw_tx = request.cookies.get("github_oauth")
+    if not raw_tx:
+        raise HTTPException(400, "Missing OAuth transaction cookie")
+    tx = unsigned(raw_tx)
+    if not secrets.compare_digest(state, tx["state"]):
+        raise HTTPException(400, "OAuth state mismatch")
+
+    async with httpx.AsyncClient(timeout=10.0) as http:
+        token_res = await http.post(GITHUB_TOKEN, data={
+            "client_id": GITHUB_CLIENT_ID,
+            "client_secret": GITHUB_CLIENT_SECRET,
+            "code": code,
+            "redirect_uri": GITHUB_REDIRECT_URI,
+        }, headers={"Accept": "application/json"})
+        if token_res.is_error:
+            raise HTTPException(502, "GitHub token exchange failed")
+        access_token = token_res.json().get("access_token")
+        if not access_token:
+            raise HTTPException(502, "GitHub did not return an access token")
+
+        user_res = await http.get(GITHUB_USER_API, headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        })
+        if user_res.is_error:
+            raise HTTPException(502, "GitHub user request failed")
+        profile = user_res.json()
+
+    github_id = str(profile["id"])
+    now = datetime.now(timezone.utc).isoformat()
+    await db.github_profiles.update_one(
+        {"github_id": github_id},
+        {"$set": {
+            "github_id": github_id,
+            "username": profile.get("login"),
+            "name": profile.get("name"),
+            "avatar_url": profile.get("avatar_url"),
+            "profile_url": profile.get("html_url"),
+            "public_repos": profile.get("public_repos", 0),
+            "followers": profile.get("followers", 0),
+            "bio": profile.get("bio"),
+            "verified_at": now,
+        }, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    response = RedirectResponse(f"{FRONTEND_URL}/?github=connected", status_code=302)
+    response.delete_cookie("github_oauth", path="/api/auth/github")
+    response.set_cookie("github_session", signed({"gid": github_id}),
+                        httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
+    return response
+
+
+@api_router.get("/auth/github/me")
+async def github_me(request: Request):
+    cookie = request.cookies.get("github_session")
+    if not cookie:
+        raise HTTPException(401, "Not signed in")
+    session = unsigned(cookie, max_age=86400)
+    profile = await db.github_profiles.find_one({"github_id": session["gid"]}, {"_id": 0})
+    if not profile:
+        raise HTTPException(401, "Session user not found")
+    return profile
+
+
+@api_router.post("/auth/github/logout")
+async def github_logout():
+    response = Response(content='{"ok": true}', media_type="application/json")
+    response.delete_cookie("github_session", path="/")
     return response
 
 

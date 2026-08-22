@@ -61,6 +61,13 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 ### 2026-08-22 (v2.7)
 - Interactive skills: each of the 14 roles in the Specializations section shows a floating glass "case file" popup on hover (tap on mobile) with realistic project example, highlighted metric, description and tech stack tags — bilingual EN/ES, spring entrance animation, accent-colored per domain. Screenshot verified.
 
+### 2026-08-22 (v2.8)
+- GitHub Connect: real OAuth backend (/api/auth/github/start|callback|me|logout|status, github_profiles keyed by github_id) auto-activates when GITHUB_CLIENT_ID/SECRET set; DEMO-mode modal fallback active meanwhile. Verified Identity card now shows dual provider rows (LinkedIn + GitHub). /social-connect validates domain per provider. Admin has GitHub Verified tab
+- Lead Export: GET /api/admin/leads/export (admin-only CSV, 9 columns incl. status/note) + Export CSV button in leads filter bar (downloads ashtor_leads.csv)
+- Success Stories: #stories marquee strip (8 best case files, bilingual, accent-colored) between Specializations and Pathways
+- Case Deep Links: skill popup CTA "Request this profile / Solicitar este perfil" scrolls to #contact and pre-fills the intake textarea via 'ashtor:prefill' CustomEvent
+- Tested by testing_agent: 12/12 backend + all frontend flows pass (/app/test_reports/iteration_1.json)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
@@ -71,11 +78,9 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Admin (site owner) reviewing intake signals
 
 ## Backlog
-- P0: User provides LinkedIn Client ID/Secret → real OAuth activates (register redirect URI: https://remote-connect-59.preview.emergentagent.com/api/auth/linkedin/callback)
+- P0: User registers LinkedIn redirect URIs in LinkedIn app (OAuth blocked on that); user provides GitHub OAuth App Client ID/Secret to activate real GitHub flow (callback: {env_url}/api/auth/github/callback)
 - P1: Refresh-token endpoint wiring on frontend (access token is 15 min)
-- P1: GitHub / X connect providers
-- P2: Lead status pipeline (contacted/matched/hired) in admin
-- P2: Email notifications on new lead (Resend)
+- P2: X (Twitter) connect provider
 
 ## Test Credentials
 See /app/memory/test_credentials.md — admin: admin@ashtor.net / AshtorAdmin#2026

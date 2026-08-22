@@ -40,7 +40,11 @@ const ICONS = [ShieldCheck, Boxes, Compass];
 const CYBER_IMG =
   'https://images.unsplash.com/photo-1614064641938-3bbee52942c7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxjeWJlcnNlY3VyaXR5JTIwZGV2ZWxvcGVyJTIwcmVtb3RlJTIwdGVjaHxlbnwwfHx8fDE3ODczMzc3NDd8MA&ixlib=rb-4.1.0&q=85';
 
-function SkillCasePopup({ role, accent, caseLabel }) {
+function SkillCasePopup({ role, accent, caseLabel, caseCta }) {
+  const requestProfile = () => {
+    window.dispatchEvent(new CustomEvent('ashtor:prefill', { detail: { skills: `${role.name} — ${role.project}` } }));
+    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+  };
   return (
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.94 }}
@@ -48,7 +52,7 @@ function SkillCasePopup({ role, accent, caseLabel }) {
       exit={{ opacity: 0, y: 8, scale: 0.96 }}
       transition={{ type: 'spring', stiffness: 380, damping: 28 }}
       style={{ x: '-50%' }}
-      className={`absolute bottom-full left-1/2 mb-3 w-[290px] sm:w-[320px] z-50 rounded-xl border ${accent.popupBorder} bg-[#0B0E14]/95 backdrop-blur-xl p-5 pointer-events-none`}
+      className={`absolute bottom-full left-1/2 mb-3 w-[290px] sm:w-[320px] z-50 rounded-xl border ${accent.popupBorder} bg-[#0B0E14]/95 backdrop-blur-xl p-5`}
       data-testid={`skill-case-popup-${role.name.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`}
     >
       <div className="flex items-center gap-2 mb-3">
@@ -61,19 +65,28 @@ function SkillCasePopup({ role, accent, caseLabel }) {
         <span className={`font-display text-3xl font-extrabold tracking-tight leading-none ${accent.metric}`}>{role.metric}</span>
         <span className="text-[11px] text-slate-500 leading-tight pb-0.5">{role.metricLabel}</span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mb-4">
         {role.stack.map((tech) => (
           <span key={tech} className={`font-mono-tech text-[9px] tracking-wider uppercase border rounded-full px-2 py-0.5 ${accent.tag}`}>
             {tech}
           </span>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={requestProfile}
+        data-testid={`skill-case-cta-${role.name.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`}
+        className={`w-full inline-flex items-center justify-center gap-1.5 rounded-lg border ${accent.popupBorder.split(' ')[0]} bg-white/[0.03] px-3 py-2 font-mono-tech text-[10px] tracking-[0.15em] uppercase ${accent.icon} hover:bg-white/[0.08] transition-colors duration-200`}
+      >
+        {caseCta}
+        <ArrowUpRight size={11} />
+      </button>
       <div className={`absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-[#0B0E14] border-b border-r ${accent.popupBorder.split(' ')[0]}`} />
     </motion.div>
   );
 }
 
-function SkillItem({ role, accent, caseLabel }) {
+function SkillItem({ role, accent, caseLabel, caseCta }) {
   const [open, setOpen] = useState(false);
   return (
     <li
@@ -91,7 +104,7 @@ function SkillItem({ role, accent, caseLabel }) {
         <span className="border-b border-dashed border-white/15">{role.name}</span>
       </button>
       <AnimatePresence>
-        {open && <SkillCasePopup role={role} accent={accent} caseLabel={caseLabel} />}
+        {open && <SkillCasePopup role={role} accent={accent} caseLabel={caseLabel} caseCta={caseCta} />}
       </AnimatePresence>
     </li>
   );
@@ -153,7 +166,7 @@ export default function Specializations() {
                   <h3 className="font-display text-lg sm:text-xl font-medium tracking-tight mb-5">{card.title}</h3>
                   <ul className="space-y-1.5">
                     {card.roles.map((role) => (
-                      <SkillItem key={role.name} role={role} accent={a} caseLabel={s.caseLabel} />
+                      <SkillItem key={role.name} role={role} accent={a} caseLabel={s.caseLabel} caseCta={s.caseCta} />
                     ))}
                   </ul>
                 </div>
