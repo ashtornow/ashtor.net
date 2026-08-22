@@ -1,0 +1,26 @@
+{
+  "summary": "Regression pass after code-review refactor. Backend: 12/12 existing test_new_features.py + 17/17 new test_regression.py — 29/29 total passing. Verified refactored helpers (_check_email_urls/_check_email_anchors/_digest_tick/_github_fetch_profile/_linkedin_fetch_verified_profile) behave identically. OAuth start endpoints return 302 to real github.com/linkedin.com with state+redirect_uri. Admin login (cookies set), leads/social-connections/linkedin/github lists, PATCH status+note (verified via GET re-read), CSV export (name/email in header), and digest send (called EXACTLY once — real email sent to info@ashtor.net, returned {sent:true}). Frontend: Admin dashboard renders 4 tab cards (leads=4, linkedin=14, verified=0, github=0), status pills (16) and note toggles (4) present and interactive, filter pills work, Export CSV+digest buttons present, logout works. Landing: hero counter='2,431', 8 story-cards, both connect rows visible, ES toggle shows 'Conectar GitHub' and 'Misiones reales', chat widget streams a 619-char SSE reply from Emergent LLM, lead form submits successfully. No regressions detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_regression.py",
+    "/app/test_reports/pytest/regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 976 lines (grew from 869 after helper extractions). Refactor achieved clean helper separation but the file is still >700 lines — consider splitting into routers (auth, admin, social, github, leads, email) in a follow-up.",
+    "Admin.jsx split to 262 lines + AdminLogin (55) + AdminTables (254) is a clean refactor; all data-testids preserved and verified working.",
+    "Chat message React keys now use unique ids (m.id) — verified no console key warnings during SSE stream.",
+    "backend/tests loads REACT_APP_BACKEND_URL from /app/frontend/.env via python-dotenv — good, credentials no longer hardcoded."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_regression.py (new — 17 regression tests)"
+  ],
+  "success_rate": {"backend": "100% (29/29)", "frontend": "100%"},
+  "test_credentials": "admin@ashtor.net / AshtorAdmin#2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "1 lead created (TEST_Regress User, test_regress@ashtor.net) via /api/leads; 2 social_connections via /api/social-connect (TEST_LI/TEST_GH Regress); 1 lead patched status='contacted' + note='TEST_regress note' (Diego Ruiz); 1 UI-submitted lead (TEST_UI Regress, test_ui_regress2@ashtor.net). 1 real digest email sent to info@ashtor.net (as authorized).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run all backend regression: `python -m pytest backend/tests/ -o addopts='' -q` → 29 passed expected. Lead form testids are lead-form-name-input / lead-form-email-input / lead-form-skills-input / lead-form-location-input / lead-form-submit-button. Language toggle testids: language-toggle-es / language-toggle-en. Chat send: chat-send-button; close: chat-close-button. Chat messages have no per-message testid — read text from [data-testid='chat-messages']. Do NOT click admin-send-digest-button — a real email is sent. GitHub+LinkedIn OAuth are configured with real credentials; only verify 302 to github.com/linkedin.com — do not complete external login."
+}

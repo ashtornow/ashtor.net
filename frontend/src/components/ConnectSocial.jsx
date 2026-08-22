@@ -130,7 +130,9 @@ export default function ConnectSocial() {
         try {
           const parsed = JSON.parse(saved);
           setDemo((s) => ({ ...s, [prov]: parsed }));
-        } catch {}
+        } catch (err) {
+          console.warn(`Connect: invalid saved ${prov} demo profile`, err);
+        }
       }
     });
     const params = new URLSearchParams(window.location.search);
@@ -168,7 +170,9 @@ export default function ConnectSocial() {
             profile_url: url,
             full_name: name,
           });
-        } catch {}
+        } catch (err) {
+          console.warn('Connect: failed to save social connection', err);
+        }
         localStorage.setItem(LS_KEYS[modalProvider], JSON.stringify(data));
         setDemo((s) => ({ ...s, [modalProvider]: data }));
         setPhase('done');
@@ -201,7 +205,9 @@ export default function ConnectSocial() {
   const disconnect = async (provider) => {
     try {
       await fetch(`${API}/auth/${provider}/logout`, { method: 'POST', credentials: 'include' });
-    } catch {}
+    } catch (err) {
+      console.warn(`Connect: ${provider} logout request failed`, err);
+    }
     setReal((s) => ({ ...s, [provider]: null }));
   };
 

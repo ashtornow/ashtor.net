@@ -76,6 +76,12 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 ### 2026-08-22 (v2.9.1)
 - GitHub OAuth callback made environment-aware: redirect_uri now derives from request host (x-forwarded-proto/host), so preview uses the preview callback and production uses https://ashtor.net/api/auth/github/callback automatically; redirect_uri stored in signed tx cookie and reused in token exchange; post-login redirect also host-derived. Verified via curl host simulation. User must register the FULL callback paths (exact match, GitHub App) in GitHub App settings
 
+### 2026-08-22 (v2.10 — code review fixes)
+- Applied code-review corrections: extracted backend helpers (_check_email_urls/_check_email_anchors, _digest_tick, _github_fetch_profile, _linkedin_fetch_verified_profile) reducing complexity/nesting; removed unused import; test credentials now loaded from backend/.env (not hardcoded)
+- Frontend: Admin.jsx split into pages/admin/AdminLogin.jsx + AdminTables.jsx (481→262 lines, all testids preserved); ChatWidget messages use unique ids as React keys; Marquee composite keys; 7 empty catch blocks now log via console.warn/error
+- REJECTED as false positives: "secrets" in server.py (public OAuth URLs) and i18n.js (UI labels); `is None` comparisons (correct Python); localStorage in ConnectSocial (only public demo display data, real sessions use httpOnly cookies); hook deps (module-level constants don't belong in deps); TSX migration + ChatWidget/AiMatch full rewrite (high risk, deferred)
+- Regression tested by testing_agent: 29/29 backend + 100% frontend (/app/test_reports/iteration_2.json). Note: tests changed lead "Diego Ruiz" status to contacted and added a TEST note
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

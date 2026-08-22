@@ -11,11 +11,12 @@ import pytest
 
 from dotenv import load_dotenv
 load_dotenv("/app/frontend/.env")
+load_dotenv("/app/backend/.env")
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@ashtor.net"
-ADMIN_PASSWORD = "AshtorAdmin#2026"
+ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
+ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 
 
 @pytest.fixture(scope="module")
@@ -35,17 +36,20 @@ def admin_client():
     return s
 
 
-# ---------- GitHub OAuth demo-mode ----------
+# ---------- GitHub OAuth (configured with real keys) ----------
 
 class TestGithubOAuth:
-    def test_status_not_configured(self, client):
+    def test_status_configured(self, client):
         r = client.get(f"{API}/auth/github/status")
         assert r.status_code == 200
-        assert r.json() == {"configured": False}
+        assert r.json() == {"configured": True}
 
-    def test_start_returns_503_when_not_configured(self, client):
+    def test_start_redirects_to_github(self, client):
         r = client.get(f"{API}/auth/github/start", allow_redirects=False)
-        assert r.status_code == 503
+        assert r.status_code == 302
+        location = r.headers.get("location", "")
+        assert location.startswith("https://github.com/login/oauth/authorize")
+        assert "redirect_uri=" in location and "state=" in location
 
     def test_me_without_cookie_returns_401(self, client):
         s = requests.Session()

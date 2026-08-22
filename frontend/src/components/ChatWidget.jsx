@@ -31,9 +31,11 @@ export default function ChatWidget() {
         const res = await fetch(`${API}/chat/history?session_id=${sessionRef.current}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.length) setMessages(data.map((m) => ({ role: m.role, content: m.content })));
+          if (data.length) setMessages(data.map((m) => ({ id: crypto.randomUUID(), role: m.role, content: m.content })));
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Chat: failed to load history', err);
+      }
     })();
   }, []);
 
@@ -45,7 +47,11 @@ export default function ChatWidget() {
     const text = input.trim();
     if (!text || streaming) return;
     setInput('');
-    setMessages((m) => [...m, { role: 'user', content: text }, { role: 'assistant', content: '' }]);
+    setMessages((m) => [
+      ...m,
+      { id: crypto.randomUUID(), role: 'user', content: text },
+      { id: crypto.randomUUID(), role: 'assistant', content: '' },
+    ]);
     setStreaming(true);
     let failed = false;
     try {
@@ -77,7 +83,7 @@ export default function ChatWidget() {
     setStreaming(false);
   };
 
-  const shown = messages.length ? messages : [{ role: 'assistant', content: c.welcome }];
+  const shown = messages.length ? messages : [{ id: 'welcome', role: 'assistant', content: c.welcome }];
 
   return (
     <>
@@ -115,7 +121,7 @@ export default function ChatWidget() {
 
             <div ref={listRef} className="h-[340px] overflow-y-auto p-4 space-y-3" data-testid="chat-messages">
               {shown.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                       m.role === 'user'

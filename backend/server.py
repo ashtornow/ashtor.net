@@ -28,7 +28,6 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -116,15 +115,7 @@ class _EmailScan(HTMLParser):
             self._href, self._text = None, []
 
 
-def _assert_safe_email(subject: str, html: str) -> None:
-    scan = _EmailScan()
-    scan.feed(html)
-    if scan.tags & {"form", "input", "textarea", "select"}:
-        raise ValueError("No forms or input fields in email (G2)")
-    body = f"{subject}\n{html}".lower()
-    for p in _CRED_ASK:
-        if p in body:
-            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+def _check_email_urls(scan: _EmailScan) -> None:
     for url in scan.urls:
         low = url.strip().lower()
         if low.startswith(("mailto:", "tel:", "cid:", "#")):
@@ -134,6 +125,9 @@ def _assert_safe_email(subject: str, html: str) -> None:
         host = urlparse(low).hostname or ""
         if not _host_ok(host) or urlparse(low).username is not None:
             raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+
+
+def _check_email_anchors(scan: _EmailScan) -> None:
     for href, text in scan.anchors:
         real = urlparse(href.strip().lower()).hostname or ""
         if not real:
@@ -141,6 +135,19 @@ def _assert_safe_email(subject: str, html: str) -> None:
         for m in _HOSTISH.finditer(text):
             if not _same_site(m.group(1).lower(), real):
                 raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan()
+    scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    _check_email_urls(scan)
+    _check_email_anchors(scan)
 
 
 async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
@@ -258,20 +265,26 @@ async def send_weekly_digest():
     )
 
 
+async def _digest_tick() -> None:
+    now = datetime.now(timezone.utc)
+    state = await db.app_state.find_one({"key": "weekly_digest"})
+    if not state:
+        await db.app_state.insert_one({"key": "weekly_digest", "last_sent_at": now.isoformat()})
+        return
+    if (now - datetime.fromisoformat(state["last_sent_at"])) < timedelta(days=7):
+        return
+    try:
+        await send_weekly_digest()
+    finally:
+        await db.app_state.update_one(
+            {"key": "weekly_digest"}, {"$set": {"last_sent_at": now.isoformat()}}
+        )
+
+
 async def weekly_digest_loop():
     while True:
         try:
-            now = datetime.now(timezone.utc)
-            state = await db.app_state.find_one({"key": "weekly_digest"})
-            if not state:
-                await db.app_state.insert_one({"key": "weekly_digest", "last_sent_at": now.isoformat()})
-            elif (now - datetime.fromisoformat(state["last_sent_at"])) >= timedelta(days=7):
-                try:
-                    await send_weekly_digest()
-                finally:
-                    await db.app_state.update_one(
-                        {"key": "weekly_digest"}, {"$set": {"last_sent_at": now.isoformat()}}
-                    )
+            await _digest_tick()
         except Exception:
             logger.exception("weekly digest loop error")
         await asyncio.sleep(3600)
@@ -610,19 +623,7 @@ async def linkedin_start():
     return response
 
 
-@api_router.get("/auth/linkedin/callback")
-async def linkedin_callback(request: Request, code: str = None, state: str = None, error: str = None):
-    if error:
-        return RedirectResponse(f"{FRONTEND_URL}/?linkedin_error=denied")
-    if not code or not state:
-        raise HTTPException(400, "Missing OAuth code or state")
-    raw_tx = request.cookies.get("linkedin_oauth")
-    if not raw_tx:
-        raise HTTPException(400, "Missing OAuth transaction cookie")
-    tx = unsigned(raw_tx)
-    if not secrets.compare_digest(state, tx["state"]):
-        raise HTTPException(400, "OAuth state mismatch")
-
+async def _linkedin_fetch_verified_profile(code: str, tx: dict) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as http:
         token_res = await http.post(LINKEDIN_TOKEN, data={
             "grant_type": "authorization_code",
@@ -658,6 +659,23 @@ async def linkedin_callback(request: Request, code: str = None, state: str = Non
             raise HTTPException(502, "LinkedIn subject mismatch")
         if "nonce" in claims and not secrets.compare_digest(claims["nonce"], tx["nonce"]):
             raise HTTPException(502, "OIDC nonce mismatch")
+    return profile
+
+
+@api_router.get("/auth/linkedin/callback")
+async def linkedin_callback(request: Request, code: str = None, state: str = None, error: str = None):
+    if error:
+        return RedirectResponse(f"{FRONTEND_URL}/?linkedin_error=denied")
+    if not code or not state:
+        raise HTTPException(400, "Missing OAuth code or state")
+    raw_tx = request.cookies.get("linkedin_oauth")
+    if not raw_tx:
+        raise HTTPException(400, "Missing OAuth transaction cookie")
+    tx = unsigned(raw_tx)
+    if not secrets.compare_digest(state, tx["state"]):
+        raise HTTPException(400, "OAuth state mismatch")
+
+    profile = await _linkedin_fetch_verified_profile(code, tx)
 
     now = datetime.now(timezone.utc).isoformat()
     await db.linkedin_profiles.update_one(
@@ -713,6 +731,30 @@ def _request_base(request: Request) -> str:
     return f"{proto}://{host}"
 
 
+async def _github_fetch_profile(code: str, redirect_uri: str) -> dict:
+    async with httpx.AsyncClient(timeout=10.0) as http:
+        token_res = await http.post(GITHUB_TOKEN, data={
+            "client_id": GITHUB_CLIENT_ID,
+            "client_secret": GITHUB_CLIENT_SECRET,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }, headers={"Accept": "application/json"})
+        if token_res.is_error:
+            raise HTTPException(502, "GitHub token exchange failed")
+        access_token = token_res.json().get("access_token")
+        if not access_token:
+            raise HTTPException(502, "GitHub did not return an access token")
+
+        user_res = await http.get(GITHUB_USER_API, headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        })
+        if user_res.is_error:
+            raise HTTPException(502, "GitHub user request failed")
+        return user_res.json()
+
+
 @api_router.get("/auth/github/status")
 async def github_status():
     return {"configured": github_configured()}
@@ -749,27 +791,7 @@ async def github_callback(request: Request, code: str = None, state: str = None,
     if not secrets.compare_digest(state, tx["state"]):
         raise HTTPException(400, "OAuth state mismatch")
 
-    async with httpx.AsyncClient(timeout=10.0) as http:
-        token_res = await http.post(GITHUB_TOKEN, data={
-            "client_id": GITHUB_CLIENT_ID,
-            "client_secret": GITHUB_CLIENT_SECRET,
-            "code": code,
-            "redirect_uri": tx.get("redirect_uri", GITHUB_REDIRECT_URI),
-        }, headers={"Accept": "application/json"})
-        if token_res.is_error:
-            raise HTTPException(502, "GitHub token exchange failed")
-        access_token = token_res.json().get("access_token")
-        if not access_token:
-            raise HTTPException(502, "GitHub did not return an access token")
-
-        user_res = await http.get(GITHUB_USER_API, headers={
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        })
-        if user_res.is_error:
-            raise HTTPException(502, "GitHub user request failed")
-        profile = user_res.json()
+    profile = await _github_fetch_profile(code, tx.get("redirect_uri", GITHUB_REDIRECT_URI))
 
     github_id = str(profile["id"])
     now = datetime.now(timezone.utc).isoformat()

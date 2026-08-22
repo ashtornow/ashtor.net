@@ -19,7 +19,9 @@ export async function streamPost(url, body, onEvent) {
       if (!line) continue;
       try {
         onEvent(JSON.parse(line.slice(5).trim()));
-      } catch {}
+      } catch (err) {
+        console.warn('SSE: dropped malformed event', err);
+      }
     }
   }
 }
