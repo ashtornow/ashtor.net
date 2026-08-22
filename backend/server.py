@@ -223,6 +223,60 @@ async def notify_new_connection(conn) -> None:
         logger.exception("connection alert email failed")
 
 
+# ---------- weekly digest ----------
+
+async def build_digest_rows():
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    all_leads = await db.leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(10000)
+    recent = [l for l in all_leads if l.get("created_at", "") >= week_ago]
+    counts = {}
+    for l in all_leads:
+        s = l.get("status", "new")
+        counts[s] = counts.get(s, 0) + 1
+    rows = [
+        ("New leads (7 days)", len(recent)),
+        ("Total leads", len(all_leads)),
+        ("Pipeline · New", counts.get("new", 0)),
+        ("Pipeline · Contacted", counts.get("contacted", 0)),
+        ("Pipeline · Matched", counts.get("matched", 0)),
+        ("Pipeline · Hired", counts.get("hired", 0)),
+    ]
+    for l in recent[:10]:
+        rows.append((l.get("full_name", "—"), f"{l.get('role', '')} · {l.get('status', 'new')}"))
+    return rows
+
+
+async def send_weekly_digest():
+    if not ALERT_EMAIL:
+        return None
+    rows = await build_digest_rows()
+    return await send_email(
+        to=ALERT_EMAIL,
+        subject="Ashtor.net — weekly lead digest",
+        html=_alert_html("Weekly lead digest", rows),
+    )
+
+
+async def weekly_digest_loop():
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            state = await db.app_state.find_one({"key": "weekly_digest"})
+            if not state:
+                await db.app_state.insert_one({"key": "weekly_digest", "last_sent_at": now.isoformat()})
+            elif (now - datetime.fromisoformat(state["last_sent_at"])) >= timedelta(days=7):
+                try:
+                    await send_weekly_digest()
+                finally:
+                    await db.app_state.update_one(
+                        {"key": "weekly_digest"}, {"$set": {"last_sent_at": now.isoformat()}}
+                    )
+        except Exception:
+            logger.exception("weekly digest loop error")
+        await asyncio.sleep(3600)
+
+
 # ---------- models ----------
 
 class Lead(BaseModel):
@@ -344,6 +398,7 @@ async def startup():
     await db.linkedin_profiles.create_index("sub", unique=True)
     await db.github_profiles.create_index("github_id", unique=True)
     await seed_admin()
+    asyncio.create_task(weekly_digest_loop())
 
 
 # ---------- public endpoints ----------
@@ -351,6 +406,17 @@ async def startup():
 @api_router.get("/")
 async def root():
     return {"message": "ashtor.net API operational"}
+
+
+NETWORK_BASE_COUNT = 2417
+
+
+@api_router.get("/stats/network")
+async def network_stats():
+    li = await db.linkedin_profiles.count_documents({})
+    gh = await db.github_profiles.count_documents({})
+    sc = await db.social_connections.count_documents({})
+    return {"verified_engineers": NETWORK_BASE_COUNT + li + gh + sc}
 
 
 @api_router.post("/leads", response_model=Lead)
@@ -438,6 +504,19 @@ async def admin_linkedin(admin=Depends(get_current_admin)):
 @api_router.get("/admin/github-profiles")
 async def admin_github(admin=Depends(get_current_admin)):
     return await db.github_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+@api_router.post("/admin/digest/send")
+async def admin_send_digest(admin=Depends(get_current_admin)):
+    email_id = await send_weekly_digest()
+    if email_id is None:
+        raise HTTPException(503, "Alert email not configured")
+    await db.app_state.update_one(
+        {"key": "weekly_digest"},
+        {"$set": {"last_sent_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"sent": True, "email_id": email_id}
 
 
 @api_router.get("/admin/leads/export")

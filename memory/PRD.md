@@ -68,6 +68,11 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Case Deep Links: skill popup CTA "Request this profile / Solicitar este perfil" scrolls to #contact and pre-fills the intake textarea via 'ashtor:prefill' CustomEvent
 - Tested by testing_agent: 12/12 backend + all frontend flows pass (/app/test_reports/iteration_1.json)
 
+### 2026-08-22 (v2.9)
+- GitHub OAuth ACTIVATED with user's Client ID/Secret (GitHub App Iv23li…). Verified: status configured:true, /start 302 → github.com with correct client_id/redirect_uri/scope/state. E2E pending user registering callback URL in GitHub App settings (preview: {preview}/api/auth/github/callback, production: https://ashtor.net/api/auth/github/callback)
+- Verified Counter: GET /api/stats/network (base 2417 + real linkedin/github/social counts); animated count-up chip in hero with pulse dot, refreshes every 30s, bilingual label. Verified showing 2,423
+- Weekly Digest: hourly background loop sends digest to ALERT_EMAIL every 7 days (state in db.app_state); digest includes 7-day new leads, pipeline breakdown, total, and 10 recent leads. Manual trigger POST /api/admin/digest/send + "Send weekly digest" button in admin header. Verified sent (id bb9e2d62)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
@@ -78,7 +83,7 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Admin (site owner) reviewing intake signals
 
 ## Backlog
-- P0: User registers LinkedIn redirect URIs in LinkedIn app (OAuth blocked on that); user provides GitHub OAuth App Client ID/Secret to activate real GitHub flow (callback: {env_url}/api/auth/github/callback)
+- P0: User registers LinkedIn redirect URIs in LinkedIn app; user registers GitHub callback URL in GitHub App settings ({env_url}/api/auth/github/callback) for E2E GitHub login
 - P1: Refresh-token endpoint wiring on frontend (access token is 15 min)
 - P2: X (Twitter) connect provider
 

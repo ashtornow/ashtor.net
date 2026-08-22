@@ -1,7 +1,8 @@
 import { useEffect, useState, Fragment } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Terminal, ShieldCheck, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, StickyNote, Download } from 'lucide-react';
+import { Terminal, ShieldCheck, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, StickyNote, Download, Mail } from 'lucide-react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -27,6 +28,7 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [noteOpen, setNoteOpen] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [digestSending, setDigestSending] = useState(false);
   const [leads, setLeads] = useState([]);
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
@@ -129,6 +131,18 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   };
 
+  const sendDigest = async () => {
+    setDigestSending(true);
+    try {
+      await axios.post(`${API}/admin/digest/send`, {}, creds);
+      toast.success(a.digestOk);
+    } catch {
+      toast.error(a.digestFail);
+    } finally {
+      setDigestSending(false);
+    }
+  };
+
   const fmt = (d) => {
     try {
       return new Date(d).toLocaleString();
@@ -218,14 +232,25 @@ export default function Admin() {
               <p className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500">{a.subtitle}</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            data-testid="admin-logout-button"
-            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-slate-300 hover:border-red-400/50 hover:text-red-300 transition-all duration-300"
-          >
-            <LogOut size={13} />
-            {a.logout}
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={sendDigest}
+              disabled={digestSending}
+              data-testid="admin-send-digest-button"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/[0.07] px-4 py-2 text-xs font-semibold text-cyan-300 hover:bg-cyan-400/[0.15] disabled:opacity-60 transition-all duration-300"
+            >
+              {digestSending ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
+              {a.digestSend}
+            </button>
+            <button
+              onClick={logout}
+              data-testid="admin-logout-button"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-slate-300 hover:border-red-400/50 hover:text-red-300 transition-all duration-300"
+            >
+              <LogOut size={13} />
+              {a.logout}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

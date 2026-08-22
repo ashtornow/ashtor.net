@@ -1,10 +1,61 @@
+import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { motion } from 'framer-motion';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 import GlobeCanvas from '@/components/GlobeCanvas';
 import ConnectSocial from '@/components/ConnectSocial';
 
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EASE = [0.16, 1, 0.3, 1];
+
+function VerifiedCounter({ label }) {
+  const [display, setDisplay] = useState(0);
+  const currentRef = useRef(0);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const animateTo = (target) => {
+      cancelAnimationFrame(rafRef.current);
+      const start = currentRef.current;
+      const t0 = performance.now();
+      const dur = 1400;
+      const tick = (now) => {
+        const p = Math.min((now - t0) / dur, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        const val = Math.round(start + (target - start) * eased);
+        currentRef.current = val;
+        setDisplay(val);
+        if (p < 1) rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    const load = () =>
+      axios.get(`${API}/stats/network`).then((r) => animateTo(r.data.verified_engineers)).catch(() => {});
+    load();
+    const timer = setInterval(load, 30000);
+    return () => {
+      clearInterval(timer);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.7, ease: 'easeOut', delay: 1.05 }}
+      className="mt-6 inline-flex items-center gap-3 rounded-full border border-emerald-500/20 bg-white/[0.03] px-5 py-2.5 backdrop-blur"
+      data-testid="hero-verified-counter"
+    >
+      <span className="pulse-dot w-2 h-2 rounded-full bg-emerald-400" />
+      <span className="font-display text-lg font-bold text-emerald-300 tabular-nums leading-none" data-testid="hero-verified-count-value">
+        {display.toLocaleString()}
+      </span>
+      <span className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-400">{label}</span>
+    </motion.div>
+  );
+}
 
 const MaskedLine = ({ children, delay }) => (
   <span className="block overflow-hidden pb-1">
@@ -96,6 +147,10 @@ export default function Hero() {
             <ArrowUpRight size={16} className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </button>
         </motion.div>
+
+        <div>
+          <VerifiedCounter label={h.liveCounter} />
+        </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
