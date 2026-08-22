@@ -73,6 +73,9 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Verified Counter: GET /api/stats/network (base 2417 + real linkedin/github/social counts); animated count-up chip in hero with pulse dot, refreshes every 30s, bilingual label. Verified showing 2,423
 - Weekly Digest: hourly background loop sends digest to ALERT_EMAIL every 7 days (state in db.app_state); digest includes 7-day new leads, pipeline breakdown, total, and 10 recent leads. Manual trigger POST /api/admin/digest/send + "Send weekly digest" button in admin header. Verified sent (id bb9e2d62)
 
+### 2026-08-22 (v2.9.1)
+- GitHub OAuth callback made environment-aware: redirect_uri now derives from request host (x-forwarded-proto/host), so preview uses the preview callback and production uses https://ashtor.net/api/auth/github/callback automatically; redirect_uri stored in signed tx cookie and reused in token exchange; post-login redirect also host-derived. Verified via curl host simulation. User must register the FULL callback paths (exact match, GitHub App) in GitHub App settings
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)

@@ -707,24 +707,31 @@ def github_configured() -> bool:
     return bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
 
 
+def _request_base(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    return f"{proto}://{host}"
+
+
 @api_router.get("/auth/github/status")
 async def github_status():
     return {"configured": github_configured()}
 
 
 @api_router.get("/auth/github/start")
-async def github_start():
+async def github_start(request: Request):
     if not github_configured():
         raise HTTPException(503, "GitHub OAuth not configured")
     state = secrets.token_urlsafe(32)
+    redirect_uri = f"{_request_base(request)}/api/auth/github/callback"
     query = urlencode({
         "client_id": GITHUB_CLIENT_ID,
-        "redirect_uri": GITHUB_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "scope": "read:user",
         "state": state,
     })
     response = RedirectResponse(f"{GITHUB_AUTH}?{query}", status_code=302)
-    response.set_cookie("github_oauth", signed({"state": state}),
+    response.set_cookie("github_oauth", signed({"state": state, "redirect_uri": redirect_uri}),
                         max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/github")
     return response
 
@@ -732,7 +739,7 @@ async def github_start():
 @api_router.get("/auth/github/callback")
 async def github_callback(request: Request, code: str = None, state: str = None, error: str = None):
     if error:
-        return RedirectResponse(f"{FRONTEND_URL}/?github_error=denied")
+        return RedirectResponse(f"{_request_base(request)}/?github_error=denied")
     if not code or not state:
         raise HTTPException(400, "Missing OAuth code or state")
     raw_tx = request.cookies.get("github_oauth")
@@ -747,7 +754,7 @@ async def github_callback(request: Request, code: str = None, state: str = None,
             "client_id": GITHUB_CLIENT_ID,
             "client_secret": GITHUB_CLIENT_SECRET,
             "code": code,
-            "redirect_uri": GITHUB_REDIRECT_URI,
+            "redirect_uri": tx.get("redirect_uri", GITHUB_REDIRECT_URI),
         }, headers={"Accept": "application/json"})
         if token_res.is_error:
             raise HTTPException(502, "GitHub token exchange failed")
@@ -781,7 +788,7 @@ async def github_callback(request: Request, code: str = None, state: str = None,
         }, "$setOnInsert": {"created_at": now}},
         upsert=True,
     )
-    response = RedirectResponse(f"{FRONTEND_URL}/?github=connected", status_code=302)
+    response = RedirectResponse(f"{_request_base(request)}/?github=connected", status_code=302)
     response.delete_cookie("github_oauth", path="/api/auth/github")
     response.set_cookie("github_session", signed({"gid": github_id}),
                         httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
