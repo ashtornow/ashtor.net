@@ -48,6 +48,11 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - 5 content pages live with routes: /talent-portal, /client-hub, /security-charter, /terms, /privacy (bilingual, numbered sections, CTA to intake form, mailto info@ashtor.net). Footer links now route to them; footer shows contact email
 - ALERT_EMAIL + EMAIL_REPLY_TO set to info@ashtor.net — NOTE: email proxy rejects it as undeliverable (422) because the mailbox/domain MX is not reachable yet; pipeline itself verified working (202 to delivered@resend.dev). Alerts resume automatically once info@ashtor.net mailbox exists
 
+### 2026-08-22 (v2.5)
+- LinkedIn OAuth ACTIVATED with user's real Client ID/Secret. Verified: status configured:true, /start 302 → linkedin.com with correct client_id/redirect_uri/scope/state/nonce + transaction cookie; frontend button redirects to LinkedIn. BLOCKED at LinkedIn side: "redirect_uri does not match the registered value" — user must register the redirect URI(s) in the LinkedIn app Auth settings:
+  - preview: https://remote-connect-59.preview.emergentagent.com/api/auth/linkedin/callback
+  - production: https://remote-connect-59.emergent.host/api/auth/linkedin/callback
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
