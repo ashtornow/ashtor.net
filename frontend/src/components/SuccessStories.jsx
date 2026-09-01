@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '@/i18n';
@@ -6,18 +7,24 @@ const PICKS = [
   [0, 0], [1, 0], [2, 0], [0, 4], [1, 1], [2, 2], [0, 3], [1, 2],
 ];
 
+const FILTER_KEYS = ['all', 'emerald', 'cyan', 'amber'];
+
 const ACCENT = {
-  emerald: { text: 'text-emerald-400', border: 'border-emerald-500/25', tag: 'border-emerald-500/25 text-emerald-300/90 bg-emerald-500/[0.08]' },
-  cyan: { text: 'text-cyan-400', border: 'border-cyan-500/25', tag: 'border-cyan-500/25 text-cyan-300/90 bg-cyan-500/[0.08]' },
-  amber: { text: 'text-amber-400', border: 'border-amber-500/25', tag: 'border-amber-500/25 text-amber-300/90 bg-amber-500/[0.08]' },
+  emerald: { text: 'text-emerald-400', border: 'border-emerald-500/25', tag: 'border-emerald-500/25 text-emerald-300/90 bg-emerald-500/[0.08]', chip: 'border-emerald-500/50 text-emerald-300 bg-emerald-500/[0.08]' },
+  cyan: { text: 'text-cyan-400', border: 'border-cyan-500/25', tag: 'border-cyan-500/25 text-cyan-300/90 bg-cyan-500/[0.08]', chip: 'border-cyan-500/50 text-cyan-300 bg-cyan-500/[0.08]' },
+  amber: { text: 'text-amber-400', border: 'border-amber-500/25', tag: 'border-amber-500/25 text-amber-300/90 bg-amber-500/[0.08]', chip: 'border-amber-500/50 text-amber-300 bg-amber-500/[0.08]' },
+  all: { chip: 'border-slate-400/50 text-slate-200 bg-white/[0.06]' },
 };
 
 export default function SuccessStories() {
   const { t } = useLanguage();
   const s = t.stories;
   const cards = t.specs.cards;
+  const [filter, setFilter] = useState('all');
   const stories = PICKS.map(([ci, ri]) => ({ ...cards[ci].roles[ri], accent: cards[ci].accent }));
-  const loop = [...stories, ...stories];
+  const filtered = filter === 'all' ? stories : stories.filter((st) => st.accent === filter);
+  const repeats = Math.max(2, Math.ceil(8 / Math.max(filtered.length, 1)));
+  const loop = Array.from({ length: repeats }, () => filtered).flat();
 
   return (
     <section id="stories" className="relative py-20 sm:py-24 overflow-hidden" data-testid="success-stories-section">
@@ -34,20 +41,36 @@ export default function SuccessStories() {
           </p>
           <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">{s.title}</h2>
           <p className="mt-4 text-base text-slate-400">{s.sub}</p>
+          <div className="mt-6 flex flex-wrap gap-2" data-testid="story-filter-bar">
+            {FILTER_KEYS.map((key) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                data-testid={`story-filter-${key}`}
+                className={`rounded-full border px-4 py-1.5 font-mono-tech text-[10px] tracking-[0.2em] uppercase transition-all duration-200 ${
+                  filter === key
+                    ? ACCENT[key].chip
+                    : 'border-white/[0.08] text-slate-500 hover:text-slate-300 hover:border-white/25'
+                }`}
+              >
+                {s.filters[key]}
+              </button>
+            ))}
+          </div>
         </motion.div>
       </div>
 
       <div className="relative">
         <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10 bg-gradient-to-r from-[#07090E] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10 bg-gradient-to-l from-[#07090E] to-transparent" />
-        <div className="animate-marquee flex w-max items-stretch gap-5" data-testid="stories-marquee">
+        <div key={filter} className="animate-marquee flex w-max items-stretch gap-5" data-testid="stories-marquee">
           {loop.map((story, i) => {
             const a = ACCENT[story.accent];
             return (
               <article
                 key={`${story.project}-${i}`}
                 className={`w-[300px] sm:w-[330px] shrink-0 rounded-xl border ${a.border} bg-[#111620]/80 backdrop-blur p-5 flex flex-col`}
-                data-testid={i < stories.length ? `story-card-${i}` : undefined}
+                data-testid={i < filtered.length ? `story-card-${i}` : undefined}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <ArrowUpRight size={12} className={a.text} />

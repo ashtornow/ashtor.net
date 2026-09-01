@@ -611,13 +611,64 @@ async def admin_set_approval(lead_id: str, input: LeadApprovalIn, request: Reque
     return {"id": lead_id, **result}
 
 
-@api_router.get("/welcome/{access_token}")
-async def welcome_info(access_token: str):
+def _profile_payload(lead: dict) -> dict:
+    return {
+        "member_id": lead["id"][:8].upper(),
+        "full_name": lead["full_name"],
+        "email": lead["email"],
+        "role": lead["role"],
+        "skills_or_needs": lead["skills_or_needs"],
+        "location": lead["location"],
+        "language": lead.get("language", "en"),
+        "approval": lead.get("approval"),
+        "approved_at": lead.get("approved_at"),
+        "created_at": lead.get("created_at"),
+        "has_cv": bool(lead.get("cv_file_id")),
+    }
+
+
+async def _approved_lead_or_404(access_token: str) -> dict:
     lead = await db.leads.find_one({"access_token": access_token, "approval": "approved"}, {"_id": 0})
     if not lead:
         raise HTTPException(404, "Invalid access link")
-    return {"full_name": lead["full_name"], "role": lead["role"],
-            "language": lead.get("language", "en"), "approved_at": lead.get("approved_at")}
+    return lead
+
+
+@api_router.get("/welcome/{access_token}")
+async def welcome_info(access_token: str):
+    lead = await _approved_lead_or_404(access_token)
+    return _profile_payload(lead)
+
+
+@api_router.get("/profile/{access_token}")
+async def public_profile(access_token: str):
+    lead = await _approved_lead_or_404(access_token)
+    return _profile_payload(lead)
+
+
+class WelcomeUpdateIn(BaseModel):
+    skills_or_needs: str = None
+    location: str = None
+
+
+@api_router.patch("/welcome/{access_token}")
+async def welcome_update(access_token: str, input: WelcomeUpdateIn):
+    lead = await _approved_lead_or_404(access_token)
+    updates = {}
+    if input.skills_or_needs is not None:
+        v = input.skills_or_needs.strip()
+        if not v or len(v) > 500:
+            raise HTTPException(422, "Invalid skills value")
+        updates["skills_or_needs"] = v
+    if input.location is not None:
+        v = input.location.strip()
+        if not v or len(v) > 100:
+            raise HTTPException(422, "Invalid location value")
+        updates["location"] = v
+    if not updates:
+        raise HTTPException(422, "Nothing to update")
+    await db.leads.update_one({"id": lead["id"]}, {"$set": updates})
+    return _profile_payload({**lead, **updates})
 
 
 PROVIDER_DOMAINS = {"linkedin": "linkedin.com", "github": "github.com"}

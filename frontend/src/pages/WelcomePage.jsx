@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BadgeCheck, ArrowRight, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { toast } from 'sonner';
+import { BadgeCheck, ArrowRight, Loader2, ShieldAlert, Sparkles, Pencil, Copy, QrCode } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 import { usePageMeta } from '@/lib/seo';
 import { LogoBox } from '@/components/Logo';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+function ProfileRow({ label, value, testid }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-white/[0.05] last:border-0">
+      <span className="font-mono-tech text-[9px] tracking-[0.2em] uppercase text-slate-500 pt-0.5 shrink-0">{label}</span>
+      <span className="text-xs text-slate-200 text-right break-all" data-testid={testid}>{value}</span>
+    </div>
+  );
+}
 
 export default function WelcomePage() {
   const { token } = useParams();
@@ -15,6 +26,9 @@ export default function WelcomePage() {
   const navigate = useNavigate();
   const [info, setInfo] = useState(null);
   const [state, setState] = useState('loading');
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ skills_or_needs: '', location: '' });
+  const [saving, setSaving] = useState(false);
   usePageMeta('welcome');
 
   useEffect(() => {
@@ -39,6 +53,38 @@ export default function WelcomePage() {
   const goMatch = () => {
     navigate('/');
     setTimeout(() => document.getElementById('ai-match')?.scrollIntoView({ behavior: 'smooth' }), 450);
+  };
+
+  const startEdit = () => {
+    setDraft({ skills_or_needs: info.skills_or_needs || '', location: info.location || '' });
+    setEditing(true);
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/welcome/${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json();
+      setInfo(data);
+      setEditing(false);
+      toast.success(w.saved);
+    } catch (err) {
+      console.error('Welcome: profile update failed', err);
+      toast.error(w.saveError);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const apiUrl = `${API}/profile/${token}`;
+  const copyApi = async () => {
+    await navigator.clipboard.writeText(apiUrl);
+    toast.success(w.copied);
   };
 
   return (
@@ -111,6 +157,98 @@ export default function WelcomePage() {
               </motion.li>
             ))}
           </ol>
+
+          <div className="rounded-xl border border-white/[0.07] bg-[#0B0E14]/70 p-5 mb-6" data-testid="welcome-profile-card">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-mono-tech text-[10px] tracking-[0.3em] uppercase text-slate-500">{w.profileTitle}</p>
+              {!editing && (
+                <button
+                  onClick={startEdit}
+                  data-testid="welcome-edit-button"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-emerald-300 transition-all duration-200"
+                >
+                  <Pencil size={11} />
+                  {w.edit}
+                </button>
+              )}
+            </div>
+            <ProfileRow label={w.fMember} value={info.member_id} testid="welcome-member-id" />
+            <ProfileRow label={w.fEmail} value={info.email} testid="welcome-profile-email" />
+            <ProfileRow label={w.fRole} value={info.role} testid="welcome-profile-role" />
+            {editing ? (
+              <div className="py-3 space-y-3">
+                <div>
+                  <label className="block font-mono-tech text-[9px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{w.fStack}</label>
+                  <textarea
+                    rows={2}
+                    value={draft.skills_or_needs}
+                    onChange={(e) => setDraft({ ...draft, skills_or_needs: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-[#07090E] px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/60 transition-colors resize-none"
+                    data-testid="welcome-edit-stack"
+                  />
+                </div>
+                <div>
+                  <label className="block font-mono-tech text-[9px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{w.fLocation}</label>
+                  <input
+                    value={draft.location}
+                    onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-[#07090E] px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500/60 transition-colors"
+                    data-testid="welcome-edit-location"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveProfile}
+                    disabled={saving}
+                    data-testid="welcome-save-button"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-4 py-2 text-[11px] font-semibold text-[#07090E] hover:bg-emerald-400 disabled:opacity-60 transition-all duration-200"
+                  >
+                    {saving && <Loader2 size={11} className="animate-spin" />}
+                    {w.save}
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    data-testid="welcome-cancel-button"
+                    className="rounded-full border border-white/15 px-4 py-2 text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-colors duration-200"
+                  >
+                    {w.cancel}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <ProfileRow label={w.fStack} value={info.skills_or_needs} testid="welcome-profile-stack" />
+                <ProfileRow label={w.fLocation} value={info.location} testid="welcome-profile-location" />
+              </>
+            )}
+            <ProfileRow label={w.fCv} value={info.has_cv ? w.yes : w.no} testid="welcome-profile-cv" />
+            {info.approved_at && (
+              <ProfileRow label={w.fSince} value={new Date(info.approved_at).toLocaleDateString()} testid="welcome-profile-since" />
+            )}
+          </div>
+
+          <div className="rounded-xl border border-cyan-400/20 bg-[#0B0E14]/70 p-5 mb-8" data-testid="welcome-sync-card">
+            <p className="font-mono-tech text-[10px] tracking-[0.3em] uppercase text-cyan-300 mb-2 flex items-center gap-2">
+              <QrCode size={12} /> {w.syncTitle}
+            </p>
+            <div className="flex flex-col sm:flex-row items-start gap-5">
+              <div className="shrink-0 rounded-lg bg-white p-2.5" data-testid="welcome-qr">
+                <QRCodeSVG value={window.location.href} size={104} fgColor="#07090E" bgColor="#FFFFFF" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-slate-400 leading-relaxed mb-3">{w.syncSub}</p>
+                <p className="font-mono-tech text-[10px] text-slate-500 break-all mb-3" data-testid="welcome-api-url">{apiUrl}</p>
+                <button
+                  onClick={copyApi}
+                  data-testid="welcome-copy-api-button"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-400/[0.07] px-4 py-2 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-400/[0.15] transition-all duration-200"
+                >
+                  <Copy size={12} />
+                  {w.copyApi}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button

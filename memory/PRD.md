@@ -109,6 +109,12 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - CSV export now includes approval column; Lead model has approval field (default pending)
 - Tested: backend full curl E2E (3 emails 202, one-click approve/reject, idempotency, invalid tokens) + testing_agent frontend 100% (/app/test_reports/iteration_6.json)
 
+### 2026-09-01 (v2.15)
+- Story Filters: success stories marquee has domain filter chips (All/Cyber/Full-Stack/Leadership, bilingual), filtered lists repeat to fill the loop
+- Personal page upgrade: /welcome/{token} shows full profile card (member_id = lead.id[:8], email, role, stack, location, has_cv, approved_at), inline editing of stack+location via PATCH /api/welcome/{token} (422 empty/oversize), sync card with QR (qrcode.react, welcome URL) + copyable profile API link
+- Public GET /api/profile/{access_token} JSON for external app sync (user's "qr-portfolio-app" consumes this endpoint; CORS open)
+- Tested by testing_agent: 100% frontend + public API consumer simulation (/app/test_reports/iteration_7.json). Test lead profile now 'Madrid, ES'/'Rust, Go'
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
