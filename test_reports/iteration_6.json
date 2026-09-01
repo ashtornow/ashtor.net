@@ -1,0 +1,35 @@
+{
+  "summary": "Frontend testing of manual approval workflow. Created 2 fresh leads via API (TEST_ApproveMe, TEST_RejectMe, both language=en, email=info@ashtor.net). Logged into /admin and verified: (1) lead-approve-{id}/lead-reject-{id} buttons render on new leads; (2) clicking approve replaces buttons with lead-approval-badge-{id}='Approved' and shows toast 'Lead approved — access email sent'; (3) clicking reject triggers window.confirm (auto-accepted) and shows badge='Rejected'. Welcome page /welcome/eZlPd9G-1OsImEfcMXQU8Dc94S5oZYtl renders welcome-card with welcome-approved-badge='ACCESO APROBADO' (Spanish auto-switch confirmed), greeting includes 'TEST_Approval User', 3 welcome-step-* elements, both CTAs present; welcome-cta-match navigates to /. Invalid token /welcome/not-a-real-token shows welcome-invalid card with 'Invalid or expired link' and welcome-home-link. Regression: leads table still shows status pills, note/reply/files buttons, CSV export button; landing page loads normally. Backend API /api/leads/approval?token=garbage&action=approve returns 400 as expected.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "GET /api/leads/approval?token=garbage (no action param)", "issue": "Returns 403 instead of 400 when action query param is omitted. With action=approve/reject it correctly returns 400. Real one-click emails always include action, so functionally OK, but may want to normalize."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications": {
+    "admin_login": "PASS",
+    "approve_flow": "PASS — badge 'Approved' replaces buttons, toast shown",
+    "reject_flow": "PASS — window.confirm handled, badge 'Rejected' shown",
+    "welcome_valid_token_es": "PASS — welcome-card + welcome-approved-badge='ACCESO APROBADO' + 'TEST_Approval User' + 3 steps + both CTAs",
+    "welcome_cta_match_nav": "PASS — navigates to /",
+    "welcome_invalid_token": "PASS — welcome-invalid card + home link",
+    "regression_pills_note_reply_files_csv": "PASS — all controls coexist with approval buttons",
+    "regression_landing": "PASS"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor backend: /api/leads/approval returns 403 (Forbidden) when 'action' query param is absent instead of a consistent 400. Consider requiring action via Pydantic Query for consistent 422/400 error.",
+    "Console noise: repeated 401 errors from /api/auth/me probes on public pages (already noted in iteration_5)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "test_credentials": "admin@ashtor.net / AshtorAdmin#2026 (used)",
+  "seed_data_creation": "Created 2 leads via POST /api/leads: TEST_ApproveMe (id=a768c04d-df36-437c-9e62-3a8b4ada3114, now approved) and TEST_RejectMe (id=68e1551b-065f-43ed-9dee-d503380c5889, now rejected). Emails hit info@ashtor.net only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Approval testids: lead-approve-{id}, lead-reject-{id}, lead-approval-badge-{id}. Reject uses window.confirm — must handle page.on('dialog'). Welcome page auto-switches language via setLang from lead.language. Valid token in problem statement (eZlPd9G-1OsImEfcMXQU8Dc94S5oZYtl) belongs to Spanish lead → UI switches to ES ('ACCESO APROBADO'). LeadCreate requires: role, full_name, email, skills_or_needs, location, language (not name/company/message).",
+  "rca of the issue": "N/A — all requested items passed."
+}

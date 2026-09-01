@@ -32,6 +32,11 @@ const META = {
       desc: 'ashtor.net internal lead management dashboard.',
       noindex: true,
     },
+    welcome: {
+      title: 'Access Approved | ashtor.net',
+      desc: 'Your ashtor.net access has been approved. See your next steps and run your priority AI Match.',
+      noindex: true,
+    },
   },
   es: {
     home: {
@@ -61,6 +66,11 @@ const META = {
     admin: {
       title: 'Command Center | ashtor.net',
       desc: 'Panel interno de gestión de leads de ashtor.net.',
+      noindex: true,
+    },
+    welcome: {
+      title: 'Acceso Aprobado | ashtor.net',
+      desc: 'Tu acceso a ashtor.net fue aprobado. Mira tus siguientes pasos y ejecuta tu AI Match prioritario.',
       noindex: true,
     },
   },

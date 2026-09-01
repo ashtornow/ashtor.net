@@ -101,6 +101,18 @@ export default function Admin() {
     }
   };
 
+  const setApproval = async (leadId, action) => {
+    if (action === 'reject' && !window.confirm(a.rejectConfirm)) return;
+    try {
+      const r = await axios.patch(`${API}/admin/leads/${leadId}/approval`, { action }, creds);
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, approval: r.data.approval } : l)));
+      toast.success(action === 'approve' ? a.approveOk : a.rejectOk);
+    } catch (err) {
+      console.error('Admin: approval update failed', err);
+      toast.error(a.approvalFail);
+    }
+  };
+
   const toggleNote = (l) => {
     setNoteOpen(noteOpen === l.id ? null : l.id);
     setNoteDraft(l.note || '');
@@ -311,6 +323,7 @@ export default function Admin() {
               setStatusFilter={setStatusFilter}
               statusLabel={statusLabel}
               patchStatus={patchStatus}
+              setApproval={setApproval}
               noteOpen={noteOpen}
               noteDraft={noteDraft}
               setNoteDraft={setNoteDraft}

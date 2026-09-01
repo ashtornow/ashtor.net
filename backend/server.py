@@ -24,7 +24,7 @@ import httpx
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from authlib.jose import JsonWebKey, jwt as oidc_jwt
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File
-from fastapi.responses import StreamingResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict
@@ -46,6 +46,7 @@ EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
 ALERT_EMAIL = os.environ.get("ALERT_EMAIL", "")
+APPROVAL_EMAIL = os.environ.get("APPROVAL_EMAIL", "")
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 
 serializer = URLSafeTimedSerializer(SESSION_SECRET)
@@ -303,6 +304,7 @@ class Lead(BaseModel):
     language: str = "en"
     status: str = "new"
     note: str = ""
+    approval: str = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -444,13 +446,178 @@ async def network_stats():
 
 
 @api_router.post("/leads", response_model=Lead)
-async def create_lead(input: LeadCreate):
+async def create_lead(input: LeadCreate, request: Request):
     lead = Lead(**input.model_dump())
     doc = lead.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.leads.insert_one(doc)
     asyncio.create_task(notify_new_lead(lead))
+    asyncio.create_task(notify_approval_request(lead, _request_base(request)))
     return lead
+
+
+# ---------- manual approval workflow ----------
+
+_APPROVAL_ROWS = (("Name", "full_name"), ("Email", "email"), ("Role", "role"),
+                  ("Stack / Needs", "skills_or_needs"), ("Location", "location"), ("Language", "language"))
+
+
+def _approval_html(lead: dict, approve_url: str, reject_url: str) -> str:
+    cells = "".join(
+        f'<tr><td style="padding:6px 12px;font-size:12px;color:#94A3B8;text-transform:uppercase;'
+        f'letter-spacing:1px">{escape(label)}</td>'
+        f'<td style="padding:6px 12px;font-size:14px;color:#F8FAFC">{escape(str(lead.get(key, "—")))}</td></tr>'
+        for label, key in _APPROVAL_ROWS
+    )
+    return (
+        '<div style="background:#07090E;padding:32px;font-family:Arial,Helvetica,sans-serif">'
+        '<table style="max-width:560px;margin:auto;background:#111620;border:1px solid #1E293B;'
+        'border-radius:12px;padding:24px;width:100%">'
+        '<tr><td colspan="2" style="padding:12px;font-size:18px;font-weight:bold;color:#F8FAFC">'
+        'New signup awaiting approval</td></tr>'
+        f'{cells}'
+        '<tr><td colspan="2" style="padding:20px 12px 6px">'
+        f'<a href="{approve_url}" style="display:inline-block;background:#10B981;color:#07090E;font-size:13px;'
+        'font-weight:bold;padding:10px 22px;border-radius:999px;text-decoration:none;margin-right:10px">Approve access</a>'
+        f'<a href="{reject_url}" style="display:inline-block;background:#334155;color:#F8FAFC;font-size:13px;'
+        'font-weight:bold;padding:10px 22px;border-radius:999px;text-decoration:none">Reject</a>'
+        '</td></tr></table></div>'
+    )
+
+
+async def notify_approval_request(lead: Lead, base: str) -> None:
+    if not APPROVAL_EMAIL:
+        return
+    try:
+        approve_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'approve'})}"
+        reject_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'reject'})}"
+        await send_email(
+            to=APPROVAL_EMAIL,
+            subject=f"Approval needed: {lead.full_name} ({lead.role})",
+            html=_approval_html(lead.model_dump(), approve_url, reject_url),
+        )
+    except Exception:
+        logger.exception("approval request email failed")
+
+
+async def _send_approved_email(lead: dict, welcome_url: str) -> None:
+    es = lead.get("language") == "es"
+    await send_email(
+        to=lead["email"],
+        subject="Tu acceso a Ashtor está aprobado" if es else "Your Ashtor access is approved",
+        html=_alert_html(
+            "Acceso aprobado" if es else "Access approved",
+            [("Nombre" if es else "Name", lead.get("full_name", "—")),
+             ("Estado" if es else "Status", "APROBADO" if es else "APPROVED"),
+             ("Perfil" if es else "Profile", lead.get("role", "—"))],
+            cta_url=welcome_url,
+            cta_label="Abrir mi portal de acceso" if es else "Open my access portal",
+        ),
+    )
+
+
+async def _send_rejected_email(lead: dict, base: str) -> None:
+    es = lead.get("language") == "es"
+    msg = ("Por ahora no podemos continuar con tu registro. Guardaremos tu perfil y te contactaremos "
+           "si se abre un match adecuado.") if es else (
+           "We can't move forward with your signup right now. We'll keep your profile on file and reach "
+           "out if a suitable match opens up.")
+    await send_email(
+        to=lead["email"],
+        subject="Sobre tu registro en Ashtor" if es else "About your Ashtor signup",
+        html=_alert_html(
+            "Gracias por tu interés" if es else "Thanks for your interest",
+            [("Nombre" if es else "Name", lead.get("full_name", "—")), ("Mensaje" if es else "Message", msg)],
+            cta_url=f"{base}/",
+            cta_label="Volver al sitio" if es else "Back to the site",
+        ),
+    )
+
+
+async def _apply_approval(lead: dict, action: str, base: str) -> dict:
+    if action == "approve":
+        access_token = secrets.token_urlsafe(24)
+        await db.leads.update_one({"id": lead["id"]}, {"$set": {
+            "approval": "approved",
+            "access_token": access_token,
+            "approved_at": datetime.now(timezone.utc).isoformat(),
+        }})
+        try:
+            await _send_approved_email(lead, f"{base}/welcome/{access_token}")
+        except Exception:
+            logger.exception("approval confirmation email failed")
+        return {"approval": "approved"}
+    await db.leads.update_one({"id": lead["id"]}, {"$set": {"approval": "rejected"}})
+    try:
+        await _send_rejected_email(lead, base)
+    except Exception:
+        logger.exception("rejection email failed")
+    return {"approval": "rejected"}
+
+
+_APPROVAL_PAGE = (
+    '<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex">'
+    '<title>ashtor.net</title></head>'
+    '<body style="background:#07090E;color:#F8FAFC;font-family:Arial,Helvetica,sans-serif;'
+    'display:flex;align-items:center;justify-content:center;height:100vh;margin:0">'
+    '<div style="text-align:center;border:1px solid #1E293B;background:#111620;border-radius:14px;'
+    'padding:40px 48px;max-width:420px">'
+    '<div style="font-size:34px;margin-bottom:12px;color:{color}">{icon}</div>'
+    '<h1 style="font-size:20px;margin:0 0 8px">{title}</h1>'
+    '<p style="color:#94A3B8;font-size:14px;margin:0;line-height:1.6">{sub}</p>'
+    '</div></body></html>'
+)
+
+
+@api_router.get("/leads/approval")
+async def approval_via_email(token: str, request: Request):
+    try:
+        payload = unsigned(token, max_age=14 * 86400)
+    except Exception:
+        raise HTTPException(400, "Invalid or expired approval link")
+    lead = await db.leads.find_one({"id": payload["lead_id"]}, {"_id": 0})
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    name = escape(lead.get("full_name", ""))
+    current = lead.get("approval", "pending")
+    if current != "pending":
+        return HTMLResponse(_APPROVAL_PAGE.format(
+            color="#94A3B8", icon="&#8505;", title=f"Already {current}",
+            sub=f"{name} was already {current}. No new emails were sent."))
+    result = await _apply_approval(lead, payload["action"], _request_base(request))
+    if result["approval"] == "approved":
+        return HTMLResponse(_APPROVAL_PAGE.format(
+            color="#10B981", icon="&#10003;", title="Access approved",
+            sub=f"{name} has been approved. A confirmation email with their unique access link is on its way."))
+    return HTMLResponse(_APPROVAL_PAGE.format(
+        color="#F87171", icon="&#10007;", title="Signup rejected",
+        sub=f"{name} has been rejected. A polite notice email was sent."))
+
+
+class LeadApprovalIn(BaseModel):
+    action: str
+
+
+@api_router.patch("/admin/leads/{lead_id}/approval")
+async def admin_set_approval(lead_id: str, input: LeadApprovalIn, request: Request, admin=Depends(get_current_admin)):
+    if input.action not in ("approve", "reject"):
+        raise HTTPException(422, "Invalid action")
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    if lead.get("approval", "pending") != "pending":
+        raise HTTPException(409, "Lead already processed")
+    result = await _apply_approval(lead, input.action, _request_base(request))
+    return {"id": lead_id, **result}
+
+
+@api_router.get("/welcome/{access_token}")
+async def welcome_info(access_token: str):
+    lead = await db.leads.find_one({"access_token": access_token, "approval": "approved"}, {"_id": 0})
+    if not lead:
+        raise HTTPException(404, "Invalid access link")
+    return {"full_name": lead["full_name"], "role": lead["role"],
+            "language": lead.get("language", "en"), "approved_at": lead.get("approved_at")}
 
 
 PROVIDER_DOMAINS = {"linkedin": "linkedin.com", "github": "github.com"}
@@ -618,12 +785,12 @@ async def admin_export_leads(admin=Depends(get_current_admin)):
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["created_at", "full_name", "email", "role", "skills_or_needs",
-                     "location", "language", "status", "note"])
+                     "location", "language", "status", "approval", "note"])
     for l in leads:
         writer.writerow([
             l.get("created_at", ""), l.get("full_name", ""), l.get("email", ""),
             l.get("role", ""), l.get("skills_or_needs", ""), l.get("location", ""),
-            l.get("language", ""), l.get("status", "new"), l.get("note", ""),
+            l.get("language", ""), l.get("status", "new"), l.get("approval", "pending"), l.get("note", ""),
         ])
     return Response(
         content=buf.getvalue(),

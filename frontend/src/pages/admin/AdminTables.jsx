@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2 } from 'lucide-react';
+import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
 
@@ -78,7 +78,7 @@ function LeadFilterBar({ a, leads, statusFilter, setStatusFilter, statusLabel, e
   );
 }
 
-function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, noteDraft, setNoteDraft, saveNote, fmt, filesOpen, toggleFiles, leadFiles, uploadingFile, onUploadAttachment, onDownloadFile, onDeleteFile }) {
+function LeadRow({ a, lead, statusLabel, patchStatus, setApproval, toggleNote, noteOpen, noteDraft, setNoteDraft, saveNote, fmt, filesOpen, toggleFiles, leadFiles, uploadingFile, onUploadAttachment, onDownloadFile, onDeleteFile }) {
   return (
     <Fragment>
       <tr className={bodyRow}>
@@ -89,6 +89,37 @@ function LeadRow({ a, lead, statusLabel, patchStatus, toggleNote, noteOpen, note
         <td className="px-5 py-3.5 text-slate-500 text-xs">{fmt(lead.created_at)}</td>
         <td className="px-5 py-3.5">
           <div className="flex flex-wrap items-center gap-1.5" data-testid={`lead-pipeline-${lead.id}`}>
+            {(lead.approval || 'pending') === 'pending' ? (
+              <span className="inline-flex items-center gap-1 mr-1.5 pr-2 border-r border-white/[0.08]">
+                <button
+                  onClick={() => setApproval(lead.id, 'approve')}
+                  data-testid={`lead-approve-${lead.id}`}
+                  title={a.approveBtn}
+                  className="rounded-full border border-emerald-500/50 bg-emerald-500/[0.08] p-1.5 text-emerald-300 hover:bg-emerald-500/[0.2] transition-all duration-200"
+                >
+                  <Check size={12} />
+                </button>
+                <button
+                  onClick={() => setApproval(lead.id, 'reject')}
+                  data-testid={`lead-reject-${lead.id}`}
+                  title={a.rejectBtn}
+                  className="rounded-full border border-red-400/40 bg-red-400/[0.05] p-1.5 text-red-300 hover:bg-red-400/[0.15] transition-all duration-200"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ) : (
+              <span
+                data-testid={`lead-approval-badge-${lead.id}`}
+                className={`mr-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                  lead.approval === 'approved'
+                    ? 'border-emerald-500/50 text-emerald-300 bg-emerald-500/[0.08]'
+                    : 'border-red-400/50 text-red-300 bg-red-400/[0.08]'
+                }`}
+              >
+                {lead.approval === 'approved' ? a.approvalApproved : a.approvalRejected}
+              </span>
+            )}
             {STATUSES.map((s) => (
               <button
                 key={s}

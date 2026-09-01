@@ -19,6 +19,7 @@ import Footer from "@/components/Footer";
 const ChatWidget = lazy(() => import("@/components/ChatWidget"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const InfoPage = lazy(() => import("@/pages/InfoPage"));
+const WelcomePage = lazy(() => import("@/pages/WelcomePage"));
 
 const Landing = () => {
   usePageMeta('home');
@@ -71,6 +72,7 @@ function App() {
             <Route path="/security-charter" element={<InfoPage slug="security-charter" />} />
             <Route path="/terms" element={<InfoPage slug="terms" />} />
             <Route path="/privacy" element={<InfoPage slug="privacy" />} />
+            <Route path="/welcome/:token" element={<WelcomePage />} />
           </Routes>
           </Suspense>
         </BrowserRouter>

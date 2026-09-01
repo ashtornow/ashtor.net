@@ -101,6 +101,14 @@ Build a landing page / hero section for ashtor.net, a remote tech recruitment pl
 - Note: CRA production build minifies automatically; Cloudflare prepends its managed block to robots.txt (user can adjust in Cloudflare dashboard). Fixes reach production after user redeploys
 - Tested by testing_agent: 100% frontend pass (/app/test_reports/iteration_5.json)
 
+### 2026-09-01 (v2.14 — manual approval workflow)
+- New lead → approval-request email to APPROVAL_EMAIL (admin@ashtor.net, new env var) with one-click Approve/Reject signed-token links (14-day expiry, idempotent, HTML result pages); regular alert still goes to info@ashtor.net
+- Admin Dashboard: approve/reject buttons per pending lead (badge after decision); PATCH /api/admin/leads/{id}/approval (409 if already processed)
+- On approve: lead gets approval=approved + access_token + approved_at; confirmation email (lead's language) with unique link {host}/welcome/{token}. On reject: polite notice email
+- /welcome/:token page (lazy route, noindex, robots Disallow /welcome): approved badge, personalized greeting, 3 next steps, priority AI Match CTA; auto-switches UI to lead language; invalid-token state. GET /api/welcome/{token}
+- CSV export now includes approval column; Lead model has approval field (default pending)
+- Tested: backend full curl E2E (3 emails 202, one-click approve/reject, idempotency, invalid tokens) + testing_agent frontend 100% (/app/test_reports/iteration_6.json)
+
 ## Verified
 - curl: login → me → admin endpoints (401 without cookie), linkedin status/me, chat stream tokens, ai-match stream tokens + final JSON (EN + ES), chat history persistence
 - Screenshots: admin login + dashboard tabs, chat widget Q&A, AI match full flow (score 88/92 reports)
