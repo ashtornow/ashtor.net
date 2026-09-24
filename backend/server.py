@@ -546,7 +546,7 @@ async def _apply_approval(lead: dict, action: str, base: str) -> dict:
             await _send_approved_email(lead, f"{base}/welcome/{access_token}")
         except Exception:
             logger.exception("approval confirmation email failed")
-        return {"approval": "approved"}
+        return {"approval": "approved", "access_token": access_token}
     await db.leads.update_one({"id": lead["id"]}, {"$set": {"approval": "rejected"}})
     try:
         await _send_rejected_email(lead, base)
