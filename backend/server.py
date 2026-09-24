@@ -410,6 +410,8 @@ async def seed_admin():
         })
     elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
         await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
+    # Remove any stale admin accounts so only the configured ADMIN_EMAIL can sign in.
+    await db.users.delete_many({"role": "admin", "email": {"$ne": ADMIN_EMAIL}})
 
 
 @app.on_event("startup")
