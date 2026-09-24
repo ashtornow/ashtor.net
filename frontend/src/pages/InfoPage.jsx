@@ -113,12 +113,12 @@ export default function InfoPage({ slug }) {
             <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
           </button>
           <a
-            href="mailto:info@ashtor.net"
+            href="mailto:ashtornet@gmail.com"
             data-testid="page-contact-email"
             className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-3.5 text-sm font-semibold text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 transition-all duration-300"
           >
             <Mail size={14} />
-            info@ashtor.net
+            ashtornet@gmail.com
           </a>
         </motion.div>
 

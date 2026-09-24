@@ -33,12 +33,12 @@ export default function Footer() {
             </div>
             <div>
               <a
-                href="mailto:info@ashtor.net"
+                href="mailto:ashtornet@gmail.com"
                 data-testid="footer-contact-email"
                 className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-emerald-300 transition-colors duration-300"
               >
                 <Mail size={14} className="text-emerald-400" />
-                info@ashtor.net
+                ashtornet@gmail.com
               </a>
             </div>
           </div>

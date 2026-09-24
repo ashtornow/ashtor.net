@@ -13,7 +13,7 @@ Thanks for reaching out to Ashtor.net. I reviewed your intake (${l.role}) and wo
 
 Best,
 Ashtor.net Team
-info@ashtor.net`,
+ashtornet@gmail.com`,
   },
   es: {
     subject: 'Ashtor.net — seguimiento de tu registro',
@@ -23,7 +23,7 @@ Gracias por escribirnos en Ashtor.net. Revisé tu registro (${l.role}) y me enca
 
 Saludos,
 Equipo Ashtor.net
-info@ashtor.net`,
+ashtornet@gmail.com`,
   },
 };
 
