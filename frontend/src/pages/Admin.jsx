@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail } from 'lucide-react';
+import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 import { usePageMeta } from '@/lib/seo';
 import { AdminLogin } from '@/pages/admin/AdminLogin';
-import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable } from '@/pages/admin/AdminTables';
+import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable, ApprovalsPanel } from '@/pages/admin/AdminTables';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const creds = { withCredentials: true };
@@ -19,7 +19,7 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState('leads');
+  const [tab, setTab] = useState('approvals');
   const [statusFilter, setStatusFilter] = useState('all');
   const [noteOpen, setNoteOpen] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -105,7 +105,7 @@ export default function Admin() {
     if (action === 'reject' && !window.confirm(a.rejectConfirm)) return;
     try {
       const r = await axios.patch(`${API}/admin/leads/${leadId}/approval`, { action }, creds);
-      setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, approval: r.data.approval } : l)));
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, approval: r.data.approval, access_token: r.data.access_token || l.access_token } : l)));
       toast.success(action === 'approve' ? a.approveOk : a.rejectOk);
     } catch (err) {
       console.error('Admin: approval update failed', err);
@@ -252,7 +252,9 @@ export default function Admin() {
     );
   }
 
+  const pendingCount = leads.filter((l) => (l.approval || 'pending') === 'pending').length;
   const tabs = [
+    { key: 'approvals', label: a.tabApprovals, Icon: ClipboardCheck, count: pendingCount },
     { key: 'leads', label: a.tabLeads, Icon: Users, count: leads.length },
     { key: 'linkedin', label: a.tabLinkedin, Icon: Linkedin, count: conns.length },
     { key: 'verified', label: a.tabVerified, Icon: BadgeCheck, count: verified.length },
@@ -293,7 +295,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {tabs.map(({ key, label, Icon, count }) => (
             <button
               key={key}
@@ -315,6 +317,9 @@ export default function Admin() {
         </div>
 
         <div className="rounded-2xl border border-white/[0.07] bg-[#111620]/70 overflow-hidden">
+          {tab === 'approvals' && (
+            <ApprovalsPanel a={a} leads={leads} setApproval={setApproval} fmt={fmt} />
+          )}
           {tab === 'leads' && (
             <LeadsTable
               a={a}

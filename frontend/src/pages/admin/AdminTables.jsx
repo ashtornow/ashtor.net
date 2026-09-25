@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
-import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X, Copy, ExternalLink, Clock, Mail, MapPin } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
 
@@ -12,7 +13,7 @@ Thanks for reaching out to Ashtor.net. I reviewed your intake (${l.role}) and wo
 
 Best,
 Ashtor.net Team
-info@ashtor.net`,
+ashtornet@gmail.com`,
   },
   es: {
     subject: 'Ashtor.net — seguimiento de tu registro',
@@ -22,7 +23,7 @@ Gracias por escribirnos en Ashtor.net. Revisé tu registro (${l.role}) y me enca
 
 Saludos,
 Equipo Ashtor.net
-info@ashtor.net`,
+ashtornet@gmail.com`,
   },
 };
 
@@ -345,6 +346,155 @@ export function VerifiedTable({ a, verified, fmt }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+async function copyToClipboard(text, okMsg) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(okMsg);
+    return;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      toast.success(okMsg);
+    } catch (err) {
+      console.error('Approvals: clipboard copy failed', err);
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+function AccessLinkRow({ a, url }) {
+  return (
+    <div className="mt-3">
+      <p className="font-mono-tech text-[9px] tracking-[0.25em] uppercase text-slate-500 mb-1.5">{a.apAccessLink}</p>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <input
+          readOnly
+          value={url}
+          onFocus={(e) => e.target.select()}
+          data-testid="approval-access-link"
+          className="flex-1 rounded-lg border border-white/10 bg-[#07090E] px-3 py-2 text-xs text-cyan-300 outline-none focus:border-cyan-400/60 truncate"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => copyToClipboard(url, a.apCopied)}
+            data-testid="approval-copy-link"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-500/[0.08] px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/[0.18] transition-all duration-200"
+          >
+            <Copy size={13} /> {a.apCopy}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 transition-all duration-200"
+          >
+            <ExternalLink size={13} /> {a.apOpen}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ApprovalsPanel({ a, leads, setApproval, fmt }) {
+  const pending = leads.filter((l) => (l.approval || 'pending') === 'pending');
+  const approved = leads.filter((l) => l.approval === 'approved');
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  return (
+    <div className="p-5 sm:p-6 space-y-8" data-testid="admin-approvals-panel">
+      <section>
+        <div className="flex items-center gap-2.5 mb-4">
+          <Clock size={15} className="text-amber-300" />
+          <h3 className="font-display font-semibold text-sm">{a.apPendingTitle}</h3>
+          <span className="rounded-full border border-amber-400/40 bg-amber-400/[0.08] px-2 py-0.5 text-[10px] font-semibold text-amber-300">{pending.length}</span>
+        </div>
+        {pending.length === 0 ? (
+          <p className="text-xs text-slate-600 py-6 text-center" data-testid="approvals-no-pending">{a.apNoPending}</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {pending.map((l) => (
+              <div
+                key={l.id}
+                data-testid={`approval-card-${l.id}`}
+                className="rounded-xl border border-white/[0.08] bg-[#0B0E14]/70 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-100 truncate">{l.full_name}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 truncate"><Mail size={11} /> {l.email}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-white/[0.08] px-2.5 py-1 text-[10px] font-semibold text-slate-300 capitalize">{l.role}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-500">
+                  {l.location && <span className="flex items-center gap-1"><MapPin size={10} /> {l.location}</span>}
+                  <span>{fmt(l.created_at)}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-4">
+                  <button
+                    onClick={() => setApproval(l.id, 'approve')}
+                    data-testid={`approval-approve-${l.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-[#07090E] hover:bg-emerald-400 transition-colors duration-200"
+                  >
+                    <Check size={13} /> {a.apApprove}
+                  </button>
+                  <button
+                    onClick={() => setApproval(l.id, 'reject')}
+                    data-testid={`approval-reject-${l.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/40 bg-red-400/[0.05] px-4 py-2 text-xs font-semibold text-red-300 hover:bg-red-400/[0.15] transition-colors duration-200"
+                  >
+                    <X size={13} /> {a.apReject}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="flex items-center gap-2.5 mb-4">
+          <BadgeCheck size={15} className="text-emerald-400" />
+          <h3 className="font-display font-semibold text-sm">{a.apApprovedTitle}</h3>
+          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/[0.08] px-2 py-0.5 text-[10px] font-semibold text-emerald-300">{approved.length}</span>
+        </div>
+        {approved.length === 0 ? (
+          <p className="text-xs text-slate-600 py-6 text-center" data-testid="approvals-no-approved">{a.apNoApproved}</p>
+        ) : (
+          <div className="space-y-3">
+            {approved.map((l) => (
+              <div
+                key={l.id}
+                data-testid={`approved-card-${l.id}`}
+                className="rounded-xl border border-emerald-500/20 bg-[#0B0E14]/70 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-100 truncate">{l.full_name}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 truncate"><Mail size={11} /> {l.email}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-slate-500">{a.apApprovedOn} · {fmt(l.approved_at || l.created_at)}</span>
+                </div>
+                {l.access_token ? (
+                  <AccessLinkRow a={a} url={`${origin}/welcome/${l.access_token}`} />
+                ) : (
+                  <p className="mt-3 text-[11px] text-slate-600">{a.apLinkPending}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

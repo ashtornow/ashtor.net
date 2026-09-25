@@ -7,10 +7,11 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
+load_dotenv("/app/backend/.env")
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 
-ADMIN_EMAIL = "admin@ashtor.net"
-ADMIN_PASSWORD = "AshtorAdmin#2026"
+ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
+ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 
 
 @pytest.fixture(scope="module")

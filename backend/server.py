@@ -34,6 +34,10 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+# SameSite policy for auth/session cookies. Use "none" (with HTTPS) when the
+# frontend and backend are served from different domains so the browser still
+# sends the cookie on cross-site requests; "lax" is fine for same-origin setups.
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax").lower()
 JWT_SECRET = os.environ["JWT_SECRET"]
 SESSION_SECRET = os.environ["SESSION_SECRET"]
 ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
@@ -410,6 +414,8 @@ async def seed_admin():
         })
     elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
         await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
+    # Remove any stale admin accounts so only the configured ADMIN_EMAIL can sign in.
+    await db.users.delete_many({"role": "admin", "email": {"$ne": ADMIN_EMAIL}})
 
 
 @app.on_event("startup")
@@ -546,7 +552,7 @@ async def _apply_approval(lead: dict, action: str, base: str) -> dict:
             await _send_approved_email(lead, f"{base}/welcome/{access_token}")
         except Exception:
             logger.exception("approval confirmation email failed")
-        return {"approval": "approved"}
+        return {"approval": "approved", "access_token": access_token}
     await db.leads.update_one({"id": lead["id"]}, {"$set": {"approval": "rejected"}})
     try:
         await _send_rejected_email(lead, base)
@@ -779,9 +785,9 @@ async def login(input: LoginIn, request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     await db.login_attempts.delete_one({"identifier": ident})
     response.set_cookie("access_token", create_access_token(str(user["_id"]), email),
-                        httponly=True, secure=True, samesite="lax", max_age=900, path="/")
+                        httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=900, path="/")
     response.set_cookie("refresh_token", create_refresh_token(str(user["_id"]),
-                        ), httponly=True, secure=True, samesite="lax", max_age=604800, path="/")
+                        ), httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=604800, path="/")
     return {"email": email, "name": user.get("name", "Admin"), "role": "admin"}
 
 
@@ -917,7 +923,7 @@ async def linkedin_start():
     })
     response = RedirectResponse(f"{LINKEDIN_AUTH}?{query}", status_code=302)
     response.set_cookie("linkedin_oauth", signed({"state": state, "nonce": nonce}),
-                        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/linkedin")
+                        max_age=600, httponly=True, secure=True, samesite=COOKIE_SAMESITE, path="/api/auth/linkedin")
     return response
 
 
@@ -994,7 +1000,7 @@ async def linkedin_callback(request: Request, code: str = None, state: str = Non
     response = RedirectResponse(f"{FRONTEND_URL}/?linkedin=connected", status_code=302)
     response.delete_cookie("linkedin_oauth", path="/api/auth/linkedin")
     response.set_cookie("app_session", signed({"sub": profile["sub"]}),
-                        httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
+                        httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=86400, path="/")
     return response
 
 
@@ -1072,7 +1078,7 @@ async def github_start(request: Request):
     })
     response = RedirectResponse(f"{GITHUB_AUTH}?{query}", status_code=302)
     response.set_cookie("github_oauth", signed({"state": state, "redirect_uri": redirect_uri}),
-                        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/github")
+                        max_age=600, httponly=True, secure=True, samesite=COOKIE_SAMESITE, path="/api/auth/github")
     return response
 
 
@@ -1111,7 +1117,7 @@ async def github_callback(request: Request, code: str = None, state: str = None,
     response = RedirectResponse(f"{_request_base(request)}/?github=connected", status_code=302)
     response.delete_cookie("github_oauth", path="/api/auth/github")
     response.set_cookie("github_session", signed({"gid": github_id}),
-                        httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
+                        httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=86400, path="/")
     return response
 
 
@@ -1395,6 +1401,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()",
+    "Content-Security-Policy": (
+        "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    ),
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+}
+
+
+@app.middleware("http")
+async def apply_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
 
 logging.basicConfig(
     level=logging.INFO,
