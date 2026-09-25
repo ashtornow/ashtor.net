@@ -1,0 +1,70 @@
+# Render Blueprint for ashtor.net
+# Monorepo: React (Create React App) frontend + FastAPI backend.
+# Spec: https://render.com/docs/blueprint-spec
+services:
+  # ---------------------------------------------------------------------------
+  # Frontend — Create React App served as a static site.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: ashtor-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: yarn install && yarn build
+    staticPublishPath: build
+    # SPA routing: serve index.html for every path so react-router routes such
+    # as /admin and /welcome/:token work on reload/direct-visit.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Full URL of the backend API (with scheme), e.g.
+      # https://ashtor-backend.onrender.com  — set this in the dashboard.
+      - key: REACT_APP_BACKEND_URL
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # Backend — FastAPI. Requires an external MongoDB (e.g. MongoDB Atlas) and the
+  # Emergent integration keys for email / AI / object storage.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: ashtor-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: bash render-build.sh
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: MONGO_URL          # MongoDB connection string (e.g. Atlas SRV URI)
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: EMAIL_FROM_NAME
+        value: Ashtor
+      - key: EMERGENT_EMAIL_KEY
+        sync: false
+      - key: EMERGENT_LLM_KEY
+        sync: false
+      - key: ALERT_EMAIL
+        sync: false
+      - key: APPROVAL_EMAIL
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      # Static site URL (with scheme) for CORS, e.g.
+      # https://ashtor-frontend.onrender.com
+      - key: FRONTEND_URL
+        sync: false
+      # "none" lets the admin cookies work across the separate frontend/backend
+      # domains (requires HTTPS, which Render provides).
+      - key: COOKIE_SAMESITE
+        value: none
