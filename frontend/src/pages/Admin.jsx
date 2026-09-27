@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail, ClipboardCheck, UserCog } from 'lucide-react';
+import { Terminal, LogOut, Users, Loader2, Mail, ClipboardCheck, UserCog, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 import { usePageMeta } from '@/lib/seo';
 import { AdminLogin } from '@/pages/admin/AdminLogin';
-import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable, ApprovalsPanel, UsersPanel } from '@/pages/admin/AdminTables';
+import { LeadsTable, ApprovalsPanel, UsersPanel, SettingsPanel } from '@/pages/admin/AdminTables';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const creds = { withCredentials: true };
@@ -28,10 +28,8 @@ export default function Admin() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [digestSending, setDigestSending] = useState(false);
   const [leads, setLeads] = useState([]);
-  const [conns, setConns] = useState([]);
-  const [verified, setVerified] = useState([]);
-  const [gh, setGh] = useState([]);
   const [users, setUsers] = useState([]);
+  const [settings, setSettings] = useState(null);
 
   const statusLabel = {
     new: a.statusNew,
@@ -55,25 +53,21 @@ export default function Admin() {
     if (!user) return;
     (async () => {
       try {
-        const [l, c, v, g] = await Promise.all([
-          axios.get(`${API}/admin/leads`, creds),
-          axios.get(`${API}/admin/social-connections`, creds),
-          axios.get(`${API}/admin/linkedin-profiles`, creds),
-          axios.get(`${API}/admin/github-profiles`, creds),
-        ]);
+        const l = await axios.get(`${API}/admin/leads`, creds);
         setLeads(l.data);
-        setConns(c.data);
-        setVerified(v.data);
-        setGh(g.data);
       } catch (err) {
         console.error('Admin: failed to load dashboard data', err);
       }
       if (user.role === 'admin') {
         try {
-          const u = await axios.get(`${API}/admin/users`, creds);
+          const [u, s] = await Promise.all([
+            axios.get(`${API}/admin/users`, creds),
+            axios.get(`${API}/admin/settings`, creds),
+          ]);
           setUsers(u.data);
+          setSettings(s.data);
         } catch (err) {
-          console.error('Admin: failed to load users', err);
+          console.error('Admin: failed to load users/settings', err);
         }
       }
     })();
@@ -121,6 +115,19 @@ export default function Admin() {
     } catch (err) {
       const d = err.response?.data?.detail;
       toast.error(typeof d === 'string' ? d : a.usPwFail);
+      return false;
+    }
+  };
+
+  const saveSettings = async (form) => {
+    try {
+      const r = await axios.patch(`${API}/admin/settings`, form, creds);
+      setSettings(r.data);
+      toast.success(a.setSaved);
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.setFail);
       return false;
     }
   };
@@ -311,10 +318,10 @@ export default function Admin() {
   const tabs = [
     { key: 'approvals', label: a.tabApprovals, Icon: ClipboardCheck, count: pendingCount },
     { key: 'leads', label: a.tabLeads, Icon: Users, count: leads.length },
-    ...(user.role === 'admin' ? [{ key: 'users', label: a.tabUsers, Icon: UserCog, count: users.length }] : []),
-    { key: 'linkedin', label: a.tabLinkedin, Icon: Linkedin, count: conns.length },
-    { key: 'verified', label: a.tabVerified, Icon: BadgeCheck, count: verified.length },
-    { key: 'github', label: a.tabGithub, Icon: Github, count: gh.length },
+    ...(user.role === 'admin' ? [
+      { key: 'users', label: a.tabUsers, Icon: UserCog, count: users.length },
+      { key: 'settings', label: a.tabSettings, Icon: SlidersHorizontal, count: null },
+    ] : []),
   ];
 
   return (
@@ -351,7 +358,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {tabs.map(({ key, label, Icon, count }) => (
             <button
               key={key}
@@ -365,7 +372,7 @@ export default function Admin() {
             >
               <div className="flex items-center justify-between mb-3">
                 <Icon size={17} className={tab === key ? 'text-emerald-400' : 'text-slate-500'} />
-                <span className="font-display text-2xl font-bold">{count}</span>
+                {typeof count === 'number' && <span className="font-display text-2xl font-bold">{count}</span>}
               </div>
               <p className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-400">{label}</p>
             </button>
@@ -404,9 +411,9 @@ export default function Admin() {
               fmt={fmt}
             />
           )}
-          {tab === 'linkedin' && <ConnectionsTable a={a} conns={conns} fmt={fmt} />}
-          {tab === 'verified' && <VerifiedTable a={a} verified={verified} fmt={fmt} />}
-          {tab === 'github' && <GithubTable a={a} gh={gh} fmt={fmt} />}
+          {tab === 'settings' && (
+            <SettingsPanel a={a} settings={settings} onSave={saveSettings} />
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X, Copy, ExternalLink, Clock, Mail, MapPin, UserPlus, KeyRound, ShieldCheck, User } from 'lucide-react';
+import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X, Copy, ExternalLink, Clock, Mail, MapPin, UserPlus, KeyRound, ShieldCheck, User, Settings } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
 
@@ -645,6 +645,56 @@ export function UsersPanel({ a, users, currentUser, onCreate, onDelete, onChange
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+export function SettingsPanel({ a, settings, onSave }) {
+  const [adminEmail, setAdminEmail] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setAdminEmail(settings.admin_email || '');
+    setContactEmail(settings.contact_email || '');
+    setNotifyEmail(settings.notification_email || '');
+  }, [settings]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    await onSave({ admin_email: adminEmail, contact_email: contactEmail, notification_email: notifyEmail });
+    setSaving(false);
+  };
+
+  const inputCls =
+    'w-full rounded-lg border border-white/10 bg-[#07090E] px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-500/60 transition-colors';
+  const field = (label, hint, value, setValue, testid) => (
+    <div>
+      <label className="block font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{label}</label>
+      <input required type="email" value={value} onChange={(e) => setValue(e.target.value)} className={inputCls} data-testid={testid} />
+      <p className="mt-1.5 text-[11px] text-slate-600">{hint}</p>
+    </div>
+  );
+
+  return (
+    <div className="p-5 sm:p-6" data-testid="admin-settings-panel">
+      <div className="flex items-center gap-2.5 mb-1">
+        <Settings size={15} className="text-emerald-400" />
+        <h3 className="font-display font-semibold text-sm">{a.setTitle}</h3>
+      </div>
+      <p className="text-xs text-slate-500 mb-5">{a.setSub}</p>
+      <form onSubmit={submit} className="space-y-5 max-w-xl" data-testid="settings-form">
+        {field(a.setAdminEmail, a.setAdminEmailHint, adminEmail, setAdminEmail, 'settings-admin-email')}
+        {field(a.setContactEmail, a.setContactEmailHint, contactEmail, setContactEmail, 'settings-contact-email')}
+        {field(a.setNotifyEmail, a.setNotifyEmailHint, notifyEmail, setNotifyEmail, 'settings-notify-email')}
+        <button type="submit" disabled={saving} data-testid="settings-save-button" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-[#07090E] hover:bg-emerald-400 disabled:opacity-60 transition-colors duration-200">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+          {saving ? a.setSaving : a.setSave}
+        </button>
+      </form>
     </div>
   );
 }

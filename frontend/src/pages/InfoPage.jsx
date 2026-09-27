@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Mail } from 'lucide-react';
@@ -6,11 +8,20 @@ import { usePageMeta } from '@/lib/seo';
 import { LogoBox } from '@/components/Logo';
 import { pagesContent } from '@/pages/content';
 
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
 export default function InfoPage({ slug }) {
   const { lang, setLang } = useLanguage();
   const c = pagesContent[lang][slug];
   const navigate = useNavigate();
   usePageMeta(slug);
+  const [contactEmail, setContactEmail] = useState('ashtornet@gmail.com');
+
+  useEffect(() => {
+    axios.get(`${API}/settings/public`)
+      .then((r) => { if (r.data?.contact_email) setContactEmail(r.data.contact_email); })
+      .catch(() => {});
+  }, []);
 
   const goContact = () => {
     navigate('/');
@@ -113,12 +124,12 @@ export default function InfoPage({ slug }) {
             <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
           </button>
           <a
-            href="mailto:ashtornet@gmail.com"
+            href={`mailto:${contactEmail}`}
             data-testid="page-contact-email"
             className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-3.5 text-sm font-semibold text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 transition-all duration-300"
           >
             <Mail size={14} />
-            ashtornet@gmail.com
+            {contactEmail}
           </a>
         </motion.div>
 
