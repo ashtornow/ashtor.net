@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
-import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X, Copy, ExternalLink, Clock, Mail, MapPin } from 'lucide-react';
+import { BadgeCheck, StickyNote, Download, Reply, Paperclip, Upload, FileText, Trash2, Loader2, Check, X, Copy, ExternalLink, Clock, Mail, MapPin, UserPlus, KeyRound, ShieldCheck, User } from 'lucide-react';
 
 export const STATUSES = ['new', 'contacted', 'matched', 'hired'];
 
@@ -492,6 +492,156 @@ export function ApprovalsPanel({ a, leads, setApproval, fmt }) {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function UsersPanel({ a, users, currentUser, onCreate, onDelete, onChangePassword, fmt }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('admin');
+  const [creating, setCreating] = useState(false);
+  const [pwOpen, setPwOpen] = useState(null);
+  const [pwDraft, setPwDraft] = useState('');
+
+  const inputCls =
+    'w-full rounded-lg border border-white/10 bg-[#07090E] px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-500/60 transition-colors';
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    const ok = await onCreate({ email, password, name, role });
+    setCreating(false);
+    if (ok) {
+      setEmail('');
+      setPassword('');
+      setName('');
+      setRole('admin');
+    }
+  };
+
+  const savePw = async (id) => {
+    const ok = await onChangePassword(id, pwDraft);
+    if (ok) {
+      setPwOpen(null);
+      setPwDraft('');
+    }
+  };
+
+  return (
+    <div className="p-5 sm:p-6 space-y-8" data-testid="admin-users-panel">
+      <section>
+        <div className="flex items-center gap-2.5 mb-1">
+          <UserPlus size={15} className="text-emerald-400" />
+          <h3 className="font-display font-semibold text-sm">{a.usTitle}</h3>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">{a.usSub}</p>
+        <form onSubmit={submit} data-testid="user-create-form" className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+          <div>
+            <label className="block font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{a.usEmail}</label>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={a.usEmailPh} className={inputCls} data-testid="user-email-input" />
+          </div>
+          <div>
+            <label className="block font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{a.usPassword}</label>
+            <input required type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={a.usPasswordPh} className={inputCls} data-testid="user-password-input" />
+          </div>
+          <div>
+            <label className="block font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{a.usName}</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={a.usNamePh} className={inputCls} data-testid="user-name-input" />
+          </div>
+          <div>
+            <label className="block font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-500 mb-1.5">{a.usRoleLabel}</label>
+            <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls} data-testid="user-role-select">
+              <option value="admin">{a.usRoleAdminOpt}</option>
+              <option value="editor">{a.usRoleEditorOpt}</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" disabled={creating} data-testid="user-create-button" className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-[#07090E] hover:bg-emerald-400 disabled:opacity-60 transition-colors duration-200">
+              {creating ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              {creating ? a.usAdding : a.usAdd}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-2.5 mb-4">
+          <ShieldCheck size={15} className="text-cyan-400" />
+          <h3 className="font-display font-semibold text-sm">{a.usListTitle}</h3>
+          <span className="rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-semibold text-slate-300">{users.length}</span>
+        </div>
+        {users.length === 0 ? (
+          <p className="text-xs text-slate-600 py-6 text-center">{a.usEmpty}</p>
+        ) : (
+          <div className="space-y-2">
+            {users.map((u) => {
+              const isSelf = currentUser && (u.id === currentUser.id || u.email === currentUser.email);
+              return (
+                <div key={u.id} data-testid={`user-row-${u.id}`} className="rounded-xl border border-white/[0.08] bg-[#0B0E14]/70 p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="w-9 h-9 rounded-lg border border-white/10 bg-white/[0.04] flex items-center justify-center shrink-0">
+                      <User size={15} className="text-slate-300" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-100 truncate">
+                        {u.email}
+                        {isSelf && <span className="ml-2 text-[10px] font-normal text-emerald-300">({a.usYou})</span>}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{u.name} · {a.usColCreated} {fmt(u.created_at)}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${u.role === 'admin' ? 'border-emerald-500/50 text-emerald-300 bg-emerald-500/[0.08]' : 'border-cyan-400/50 text-cyan-300 bg-cyan-400/[0.08]'}`}>
+                      {u.role === 'admin' ? a.usRoleAdminOpt.split(' — ')[0] : a.usRoleEditorOpt.split(' — ')[0]}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => { setPwOpen(pwOpen === u.id ? null : u.id); setPwDraft(''); }}
+                        data-testid={`user-changepw-toggle-${u.id}`}
+                        title={a.usChangePw}
+                        className="rounded-full border border-white/[0.1] p-2 text-slate-400 hover:text-cyan-300 hover:border-cyan-400/50 transition-all duration-200"
+                      >
+                        <KeyRound size={13} />
+                      </button>
+                      {!isSelf && (
+                        <button
+                          onClick={() => onDelete(u.id)}
+                          data-testid={`user-delete-${u.id}`}
+                          title={a.usDelete}
+                          className="rounded-full border border-red-400/30 p-2 text-red-300 hover:bg-red-400/[0.12] transition-all duration-200"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {pwOpen === u.id && (
+                    <div className="flex items-center gap-2 mt-3 max-w-md">
+                      <input
+                        type="password"
+                        minLength={8}
+                        value={pwDraft}
+                        onChange={(e) => setPwDraft(e.target.value)}
+                        placeholder={a.usNewPw}
+                        className={inputCls}
+                        data-testid={`user-newpw-input-${u.id}`}
+                      />
+                      <button
+                        onClick={() => savePw(u.id)}
+                        disabled={pwDraft.length < 8}
+                        data-testid={`user-newpw-save-${u.id}`}
+                        className="shrink-0 rounded-lg bg-cyan-500 px-4 py-2.5 text-xs font-semibold text-[#07090E] hover:bg-cyan-400 disabled:opacity-50 transition-colors duration-200"
+                      >
+                        {a.usSave}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

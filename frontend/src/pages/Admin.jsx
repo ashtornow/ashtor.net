@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail, ClipboardCheck } from 'lucide-react';
+import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail, ClipboardCheck, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 import { usePageMeta } from '@/lib/seo';
 import { AdminLogin } from '@/pages/admin/AdminLogin';
-import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable, ApprovalsPanel } from '@/pages/admin/AdminTables';
+import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable, ApprovalsPanel, UsersPanel } from '@/pages/admin/AdminTables';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const creds = { withCredentials: true };
@@ -31,6 +31,7 @@ export default function Admin() {
   const [conns, setConns] = useState([]);
   const [verified, setVerified] = useState([]);
   const [gh, setGh] = useState([]);
+  const [users, setUsers] = useState([]);
 
   const statusLabel = {
     new: a.statusNew,
@@ -67,8 +68,62 @@ export default function Admin() {
       } catch (err) {
         console.error('Admin: failed to load dashboard data', err);
       }
+      if (user.role === 'admin') {
+        try {
+          const u = await axios.get(`${API}/admin/users`, creds);
+          setUsers(u.data);
+        } catch (err) {
+          console.error('Admin: failed to load users', err);
+        }
+      }
     })();
   }, [user]);
+
+  const loadUsers = async () => {
+    try {
+      const r = await axios.get(`${API}/admin/users`, creds);
+      setUsers(r.data);
+    } catch (err) {
+      console.error('Admin: failed to load users', err);
+    }
+  };
+
+  const createUser = async (form) => {
+    try {
+      await axios.post(`${API}/admin/users`, form, creds);
+      toast.success(a.usCreated);
+      await loadUsers();
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usCreateFail);
+      return false;
+    }
+  };
+
+  const deleteUser = async (id) => {
+    if (!window.confirm(a.usDeleteConfirm)) return;
+    try {
+      await axios.delete(`${API}/admin/users/${id}`, creds);
+      toast.success(a.usDeleted);
+      await loadUsers();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usDeleteFail);
+    }
+  };
+
+  const changeUserPassword = async (id, password) => {
+    try {
+      await axios.patch(`${API}/admin/users/${id}`, { password }, creds);
+      toast.success(a.usPwUpdated);
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usPwFail);
+      return false;
+    }
+  };
 
   const login = async (e) => {
     e.preventDefault();
@@ -256,6 +311,7 @@ export default function Admin() {
   const tabs = [
     { key: 'approvals', label: a.tabApprovals, Icon: ClipboardCheck, count: pendingCount },
     { key: 'leads', label: a.tabLeads, Icon: Users, count: leads.length },
+    ...(user.role === 'admin' ? [{ key: 'users', label: a.tabUsers, Icon: UserCog, count: users.length }] : []),
     { key: 'linkedin', label: a.tabLinkedin, Icon: Linkedin, count: conns.length },
     { key: 'verified', label: a.tabVerified, Icon: BadgeCheck, count: verified.length },
     { key: 'github', label: a.tabGithub, Icon: Github, count: gh.length },
@@ -295,7 +351,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
           {tabs.map(({ key, label, Icon, count }) => (
             <button
               key={key}
@@ -319,6 +375,9 @@ export default function Admin() {
         <div className="rounded-2xl border border-white/[0.07] bg-[#111620]/70 overflow-hidden">
           {tab === 'approvals' && (
             <ApprovalsPanel a={a} leads={leads} setApproval={setApproval} fmt={fmt} />
+          )}
+          {tab === 'users' && (
+            <UsersPanel a={a} users={users} currentUser={user} onCreate={createUser} onDelete={deleteUser} onChangePassword={changeUserPassword} fmt={fmt} />
           )}
           {tab === 'leads' && (
             <LeadsTable
