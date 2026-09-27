@@ -163,8 +163,10 @@ def _assert_safe_email(subject: str, html: str) -> None:
 async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
     _assert_safe_email(subject, html)
     payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
-    if reply_to or EMAIL_REPLY_TO:
-        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+    if not reply_to:
+        reply_to = (await get_site_settings())["contact_email"]
+    if reply_to:
+        payload["contact_email"] = reply_to
     try:
         async with httpx.AsyncClient(timeout=30) as http:
             resp = await http.post(
@@ -206,12 +208,23 @@ def _alert_html(title: str, rows: list, cta_url: str = None, cta_label: str = "O
     )
 
 
+async def get_site_settings() -> dict:
+    """Editable site settings (stored in db.settings, falling back to env)."""
+    s = await db.settings.find_one({"key": "site"}, {"_id": 0}) or {}
+    return {
+        "admin_email": (s.get("admin_email") or APPROVAL_EMAIL or "").strip(),
+        "contact_email": (s.get("contact_email") or EMAIL_REPLY_TO or ADMIN_EMAIL or "").strip(),
+        "notification_email": (s.get("notification_email") or ALERT_EMAIL or "").strip(),
+    }
+
+
 async def notify_new_lead(lead) -> None:
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return
     try:
         await send_email(
-            to=ALERT_EMAIL,
+            to=to,
             subject=f"New lead: {lead.full_name}",
             html=_alert_html("New lead received", [
                 ("Name", lead.full_name), ("Email", lead.email), ("Role", lead.role),
@@ -224,11 +237,12 @@ async def notify_new_lead(lead) -> None:
 
 
 async def notify_new_connection(conn) -> None:
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return
     try:
         await send_email(
-            to=ALERT_EMAIL,
+            to=to,
             subject=f"New {conn.provider} connection: {conn.full_name or conn.profile_url}",
             html=_alert_html("New social connection", [
                 ("Name", conn.full_name or "—"), ("Provider", conn.provider),
@@ -265,11 +279,12 @@ async def build_digest_rows():
 
 
 async def send_weekly_digest():
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return None
     rows = await build_digest_rows()
     return await send_email(
-        to=ALERT_EMAIL,
+        to=to,
         subject="Ashtor.net — weekly lead digest",
         html=_alert_html("Weekly lead digest", rows),
     )
@@ -509,13 +524,14 @@ def _approval_html(lead: dict, approve_url: str, reject_url: str) -> str:
 
 
 async def notify_approval_request(lead: Lead, base: str) -> None:
-    if not APPROVAL_EMAIL:
+    to = (await get_site_settings())["admin_email"]
+    if not to:
         return
     try:
         approve_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'approve'})}"
         reject_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'reject'})}"
         await send_email(
-            to=APPROVAL_EMAIL,
+            to=to,
             subject=f"Approval needed: {lead.full_name} ({lead.role})",
             html=_approval_html(lead.model_dump(), approve_url, reject_url),
         )
@@ -949,6 +965,42 @@ async def admin_delete_user(user_id: str, owner=Depends(get_current_owner)):
         raise HTTPException(409, "At least one admin must remain")
     await db.users.delete_one({"_id": oid})
     return {"ok": True}
+
+
+# ---------- site settings (editable emails) ----------
+
+SETTINGS_KEYS = ("admin_email", "contact_email", "notification_email")
+
+
+class SettingsUpdateIn(BaseModel):
+    admin_email: str = None
+    contact_email: str = None
+    notification_email: str = None
+
+
+@api_router.get("/settings/public")
+async def public_settings():
+    return {"contact_email": (await get_site_settings())["contact_email"]}
+
+
+@api_router.get("/admin/settings")
+async def admin_get_settings(owner=Depends(get_current_owner)):
+    return await get_site_settings()
+
+
+@api_router.patch("/admin/settings")
+async def admin_update_settings(input: SettingsUpdateIn, owner=Depends(get_current_owner)):
+    updates = {}
+    for key in SETTINGS_KEYS:
+        val = getattr(input, key)
+        if val is not None:
+            val = val.strip()
+            if val and not USER_EMAIL_RE.match(val):
+                raise HTTPException(422, f"Invalid email for {key}")
+            updates[key] = val
+    if updates:
+        await db.settings.update_one({"key": "site"}, {"$set": updates}, upsert=True)
+    return await get_site_settings()
 
 
 @api_router.post("/admin/digest/send")
