@@ -64,6 +64,7 @@ if [ ! -f .env ]; then
   cat > .env <<'EOF'
 REACT_APP_BACKEND_URL=http://localhost:8001
 PORT=3000
+HOST=::
 EOF
 fi
 yarn install --frozen-lockfile || yarn install

@@ -12,7 +12,7 @@
     },
     {
       "name": "frontend",
-      "command": "cd frontend && BROWSER=none yarn start"
+      "command": "cd frontend && HOST=:: BROWSER=none yarn start"
     }
   ]
 }
