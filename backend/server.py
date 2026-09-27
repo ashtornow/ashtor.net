@@ -27,6 +27,8 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+from bson.errors import InvalidId
 from pydantic import BaseModel, Field, ConfigDict
 
 mongo_url = os.environ['MONGO_URL']
@@ -38,6 +40,9 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 # frontend and backend are served from different domains so the browser still
 # sends the cookie on cross-site requests; "lax" is fine for same-origin setups.
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax").lower()
+# Roles allowed to sign in to the admin panel. "admin" = full access (incl.
+# managing users); "editor" = dashboard + approvals, but not user management.
+STAFF_ROLES = {"admin", "editor"}
 JWT_SECRET = os.environ["JWT_SECRET"]
 SESSION_SECRET = os.environ["SESSION_SECRET"]
 ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
@@ -397,12 +402,20 @@ async def get_current_admin(request: Request):
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
     user = await db.users.find_one({"email": payload.get("email")})
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in STAFF_ROLES:
         raise HTTPException(status_code=401, detail="Not authorized")
-    return {"email": user["email"], "name": user.get("name", "Admin"), "role": "admin"}
+    return {"id": str(user["_id"]), "email": user["email"], "name": user.get("name", "Admin"), "role": user.get("role", "admin")}
+
+
+async def get_current_owner(admin=Depends(get_current_admin)):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return admin
 
 
 async def seed_admin():
+    # Ensure the environment-configured owner account always exists. Other admin
+    # users created from the panel are preserved across restarts.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if existing is None:
         await db.users.insert_one({
@@ -412,10 +425,14 @@ async def seed_admin():
             "role": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
-    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
-    # Remove any stale admin accounts so only the configured ADMIN_EMAIL can sign in.
-    await db.users.delete_many({"role": "admin", "email": {"$ne": ADMIN_EMAIL}})
+        return
+    updates = {}
+    if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
+        updates["password_hash"] = hash_password(ADMIN_PASSWORD)
+    if existing.get("role") != "admin":
+        updates["role"] = "admin"
+    if updates:
+        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": updates})
 
 
 @app.on_event("startup")
@@ -788,7 +805,7 @@ async def login(input: LoginIn, request: Request, response: Response):
                         httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=900, path="/")
     response.set_cookie("refresh_token", create_refresh_token(str(user["_id"]),
                         ), httponly=True, secure=True, samesite=COOKIE_SAMESITE, max_age=604800, path="/")
-    return {"email": email, "name": user.get("name", "Admin"), "role": "admin"}
+    return {"id": str(user["_id"]), "email": email, "name": user.get("name", "Admin"), "role": user.get("role", "admin")}
 
 
 @api_router.get("/auth/me")
@@ -821,6 +838,117 @@ async def admin_linkedin(admin=Depends(get_current_admin)):
 @api_router.get("/admin/github-profiles")
 async def admin_github(admin=Depends(get_current_admin)):
     return await db.github_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+# ---------- admin user management (owner only) ----------
+
+USER_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _public_user(u: dict) -> dict:
+    return {
+        "id": str(u["_id"]),
+        "email": u["email"],
+        "name": u.get("name", ""),
+        "role": u.get("role", "admin"),
+        "created_at": u.get("created_at"),
+    }
+
+
+class UserCreateIn(BaseModel):
+    email: str
+    password: str
+    name: str = "Admin"
+    role: str = "admin"
+
+
+class UserUpdateIn(BaseModel):
+    email: str = None
+    password: str = None
+    name: str = None
+    role: str = None
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(owner=Depends(get_current_owner)):
+    users = await db.users.find({}).sort("created_at", 1).to_list(1000)
+    return [_public_user(u) for u in users]
+
+
+@api_router.post("/admin/users")
+async def admin_create_user(input: UserCreateIn, owner=Depends(get_current_owner)):
+    email = input.email.lower().strip()
+    if not USER_EMAIL_RE.match(email):
+        raise HTTPException(422, "Invalid email")
+    if len(input.password) < 8:
+        raise HTTPException(422, "Password must be at least 8 characters")
+    if input.role not in STAFF_ROLES:
+        raise HTTPException(422, "Invalid role")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(409, "A user with that email already exists")
+    doc = {
+        "email": email,
+        "password_hash": hash_password(input.password),
+        "name": (input.name or "").strip() or "Admin",
+        "role": input.role,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    return _public_user(doc)
+
+
+def _parse_object_id(user_id: str) -> ObjectId:
+    try:
+        return ObjectId(user_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(404, "User not found")
+
+
+@api_router.patch("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, input: UserUpdateIn, owner=Depends(get_current_owner)):
+    oid = _parse_object_id(user_id)
+    user = await db.users.find_one({"_id": oid})
+    if not user:
+        raise HTTPException(404, "User not found")
+    updates = {}
+    if input.email is not None:
+        email = input.email.lower().strip()
+        if not USER_EMAIL_RE.match(email):
+            raise HTTPException(422, "Invalid email")
+        if await db.users.find_one({"email": email, "_id": {"$ne": oid}}):
+            raise HTTPException(409, "A user with that email already exists")
+        updates["email"] = email
+    if input.name is not None:
+        updates["name"] = input.name.strip() or "Admin"
+    if input.role is not None:
+        if input.role not in STAFF_ROLES:
+            raise HTTPException(422, "Invalid role")
+        if user.get("role") == "admin" and input.role != "admin":
+            if await db.users.count_documents({"role": "admin"}) <= 1:
+                raise HTTPException(409, "At least one admin must remain")
+        updates["role"] = input.role
+    if input.password is not None:
+        if len(input.password) < 8:
+            raise HTTPException(422, "Password must be at least 8 characters")
+        updates["password_hash"] = hash_password(input.password)
+    if updates:
+        await db.users.update_one({"_id": oid}, {"$set": updates})
+    return _public_user(await db.users.find_one({"_id": oid}))
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, owner=Depends(get_current_owner)):
+    oid = _parse_object_id(user_id)
+    user = await db.users.find_one({"_id": oid})
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user["email"] == owner["email"]:
+        raise HTTPException(409, "You cannot delete your own account")
+    if user.get("role") == "admin" and await db.users.count_documents({"role": "admin"}) <= 1:
+        raise HTTPException(409, "At least one admin must remain")
+    await db.users.delete_one({"_id": oid})
+    return {"ok": True}
 
 
 @api_router.post("/admin/digest/send")
