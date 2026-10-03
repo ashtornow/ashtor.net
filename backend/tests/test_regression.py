@@ -2,6 +2,7 @@
 Covers OAuth 302 redirects, admin PATCH endpoints, CSV export, and digest send (called once).
 """
 import os
+import uuid
 import pytest
 import requests
 from dotenv import load_dotenv
@@ -174,3 +175,79 @@ def test_admin_digest_send_once(admin_session):
     r = admin_session.post(f"{BASE_URL}/api/admin/digest/send", timeout=30)
     assert r.status_code == 200, r.text
     assert r.json().get("sent") is True
+
+
+def test_anonymous_cannot_access_admin_or_owner_routes():
+    assert requests.get(f"{BASE_URL}/api/admin/users", timeout=15).status_code == 401
+    assert requests.get(f"{BASE_URL}/api/admin/settings", timeout=15).status_code == 401
+    assert requests.get(f"{BASE_URL}/api/admin/leads", timeout=15).status_code == 401
+    denied = requests.patch(
+        f"{BASE_URL}/api/admin/settings",
+        json={"contact_email": "attacker@example.com"},
+        timeout=15,
+    )
+    assert denied.status_code == 401
+    public = requests.get(f"{BASE_URL}/api/settings/public", timeout=15)
+    assert public.status_code == 200
+    body = public.json()
+    assert "contact_email" in body
+    assert "admin_email" not in body
+    assert "notification_email" not in body
+
+
+def test_editor_cannot_manage_users_or_settings(admin_session):
+    email = f"test_editor_{uuid.uuid4().hex[:12]}@example.com"
+    created = admin_session.post(f"{BASE_URL}/api/admin/users", json={
+        "email": email,
+        "password": "editor-pass-1",
+        "name": "TEST Editor",
+        "role": "editor",
+    }, timeout=15)
+    assert created.status_code == 200, created.text
+    user_id = created.json()["id"]
+    try:
+        editor = requests.Session()
+        login = editor.post(f"{BASE_URL}/api/auth/login", json={
+            "email": email, "password": "editor-pass-1",
+        }, timeout=15)
+        assert login.status_code == 200, login.text
+        assert login.json().get("role") == "editor"
+        assert "access_token" in editor.cookies
+        assert editor.get(f"{BASE_URL}/api/admin/leads", timeout=15).status_code == 200
+        assert editor.get(f"{BASE_URL}/api/admin/users", timeout=15).status_code == 403
+        assert editor.get(f"{BASE_URL}/api/admin/settings", timeout=15).status_code == 403
+        changed = editor.patch(f"{BASE_URL}/api/admin/settings", json={
+            "contact_email": "attacker@example.com",
+        }, timeout=15)
+        assert changed.status_code == 403
+        current = admin_session.get(f"{BASE_URL}/api/admin/settings", timeout=15)
+        assert current.status_code == 200
+        assert current.json().get("contact_email") != "attacker@example.com"
+    finally:
+        admin_session.delete(f"{BASE_URL}/api/admin/users/{user_id}", timeout=15)
+
+
+def test_user_password_length_is_bounded(admin_session):
+    too_long = admin_session.post(f"{BASE_URL}/api/admin/users", json={
+        "email": f"test_longpw_{uuid.uuid4().hex[:10]}@example.com",
+        "password": "a" * 80,
+        "name": "TEST Long",
+        "role": "editor",
+    }, timeout=15)
+    assert too_long.status_code == 422, too_long.text
+    too_short = admin_session.post(f"{BASE_URL}/api/admin/users", json={
+        "email": f"test_shortpw_{uuid.uuid4().hex[:10]}@example.com",
+        "password": "short",
+        "name": "TEST Short",
+        "role": "editor",
+    }, timeout=15)
+    assert too_short.status_code == 422, too_short.text
+
+
+def test_cross_site_cookie_mutation_is_blocked(admin_session):
+    blocked = admin_session.post(
+        f"{BASE_URL}/api/admin/digest/send",
+        headers={"Origin": "https://evil.example"},
+        timeout=15,
+    )
+    assert blocked.status_code == 403, blocked.text

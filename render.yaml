@@ -68,3 +68,10 @@ services:
       # domains (requires HTTPS, which Render provides).
       - key: COOKIE_SAMESITE
         value: none
+      # Public origin of this API, with scheme, e.g.
+      # https://ashtor-backend.onrender.com
+      # Approval links are built from this so a client Host / X-Forwarded-Host
+      # header cannot redirect those tokens. Falls back to the request Host
+      # when unset.
+      - key: BACKEND_URL
+        sync: false

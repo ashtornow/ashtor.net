@@ -119,7 +119,7 @@ class TestAdminCsvExport:
         cd = r.headers.get("content-disposition", "")
         assert "ashtor_leads.csv" in cd
         first_line = r.text.splitlines()[0]
-        expected = "created_at,full_name,email,role,skills_or_needs,location,language,status,note"
+        expected = "created_at,full_name,email,role,skills_or_needs,location,language,status,approval,note"
         assert first_line.strip() == expected
         # Should have at least 1 lead row (seeded)
         assert len(r.text.splitlines()) >= 2

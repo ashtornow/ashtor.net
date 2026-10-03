@@ -43,11 +43,13 @@ if [ ! -f .env ]; then
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=test_database
 FRONTEND_URL=http://localhost:3000
+BACKEND_URL=http://localhost:8001
 JWT_SECRET=dev-jwt-secret-change-me-0123456789abcdef
 SESSION_SECRET=dev-session-secret-change-me-0123456789abcdef
 ADMIN_EMAIL=ashtornet@gmail.com
 ADMIN_PASSWORD=AshtorAdmin#2026
 EMERGENT_EMAIL_KEY=dev-placeholder-email-key
+EMAIL_DELIVERY=log
 EMAIL_FROM_NAME=Ashtor
 EMERGENT_LLM_KEY=dev-placeholder-llm-key
 ALERT_EMAIL=ashtornet@gmail.com
