@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '@/i18n';
 import GlobeCanvas from '@/components/GlobeCanvas';
-import ConnectSocial from '@/components/ConnectSocial';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EASE = [0.16, 1, 0.3, 1];
@@ -151,15 +150,6 @@ export default function Hero() {
         <div>
           <VerifiedCounter label={h.liveCounter} />
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: 'easeOut', delay: 1.1 }}
-          className="mt-6"
-        >
-          <ConnectSocial />
-        </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}

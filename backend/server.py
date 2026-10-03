@@ -27,13 +27,32 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+from bson.errors import InvalidId
 from pydantic import BaseModel, Field, ConfigDict
 
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").strip().rstrip("/") or "http://localhost:3000"
+# Public origin of this API. When set, emailed approval links and OAuth
+# redirect URIs use it instead of the incoming Host header.
+BACKEND_URL = os.environ.get("BACKEND_URL", "").strip().rstrip("/")
+if BACKEND_URL:
+    _backend_parsed = urlparse(BACKEND_URL)
+    if _backend_parsed.scheme not in ("http", "https") or not _backend_parsed.netloc or _backend_parsed.username:
+        raise RuntimeError("BACKEND_URL must be an absolute http(s) URL without userinfo")
+# SameSite policy for auth/session cookies. Use "none" (with HTTPS) when the
+# frontend and backend are served from different domains so the browser still
+# sends the cookie on cross-site requests; "lax" is fine for same-origin setups.
+# Browsers reject SameSite=None without Secure, and every cookie below is Secure.
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax").strip().lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    raise RuntimeError("COOKIE_SAMESITE must be one of: lax, strict, none")
+# Roles allowed to sign in to the admin panel. "admin" = full access (incl.
+# managing users); "editor" = dashboard + approvals, but not user management.
+STAFF_ROLES = {"admin", "editor"}
 JWT_SECRET = os.environ["JWT_SECRET"]
 SESSION_SECRET = os.environ["SESSION_SECRET"]
 ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
@@ -43,6 +62,12 @@ LINKEDIN_CLIENT_SECRET = os.environ.get("LINKEDIN_CLIENT_SECRET", "")
 LINKEDIN_REDIRECT_URI = os.environ.get("LINKEDIN_REDIRECT_URI", "")
 
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+# "live" calls the email provider. "log" validates the message and does not
+# send it — for local runs that have no EMERGENT_EMAIL_KEY. Production leaves
+# this unset.
+EMAIL_DELIVERY = os.environ.get("EMAIL_DELIVERY", "live").strip().lower()
+if EMAIL_DELIVERY not in {"live", "log"}:
+    raise RuntimeError("EMAIL_DELIVERY must be live or log")
 EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
 ALERT_EMAIL = os.environ.get("ALERT_EMAIL", "")
@@ -121,9 +146,10 @@ def _check_email_urls(scan: _EmailScan) -> None:
         low = url.strip().lower()
         if low.startswith(("mailto:", "tel:", "cid:", "#")):
             continue
-        if not low.startswith("https://"):
-            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
         host = urlparse(low).hostname or ""
+        local_http = low.startswith("http://") and host == "localhost"
+        if not low.startswith("https://") and not local_http:
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
         if not _host_ok(host) or urlparse(low).username is not None:
             raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
 
@@ -153,9 +179,14 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
     _assert_safe_email(subject, html)
+    if EMAIL_DELIVERY == "log":
+        logger.info("EMAIL_DELIVERY=log; not sending %r to %s", subject, to)
+        return "log-only"
     payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
-    if reply_to or EMAIL_REPLY_TO:
-        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+    if not reply_to:
+        reply_to = (await get_site_settings())["contact_email"]
+    if reply_to:
+        payload["contact_email"] = reply_to
     try:
         async with httpx.AsyncClient(timeout=30) as http:
             resp = await http.post(
@@ -197,12 +228,23 @@ def _alert_html(title: str, rows: list, cta_url: str = None, cta_label: str = "O
     )
 
 
+async def get_site_settings() -> dict:
+    """Editable site settings (stored in db.settings, falling back to env)."""
+    s = await db.settings.find_one({"key": "site"}, {"_id": 0}) or {}
+    return {
+        "admin_email": (s.get("admin_email") or APPROVAL_EMAIL or "").strip(),
+        "contact_email": (s.get("contact_email") or EMAIL_REPLY_TO or ADMIN_EMAIL or "").strip(),
+        "notification_email": (s.get("notification_email") or ALERT_EMAIL or "").strip(),
+    }
+
+
 async def notify_new_lead(lead) -> None:
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return
     try:
         await send_email(
-            to=ALERT_EMAIL,
+            to=to,
             subject=f"New lead: {lead.full_name}",
             html=_alert_html("New lead received", [
                 ("Name", lead.full_name), ("Email", lead.email), ("Role", lead.role),
@@ -215,11 +257,12 @@ async def notify_new_lead(lead) -> None:
 
 
 async def notify_new_connection(conn) -> None:
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return
     try:
         await send_email(
-            to=ALERT_EMAIL,
+            to=to,
             subject=f"New {conn.provider} connection: {conn.full_name or conn.profile_url}",
             html=_alert_html("New social connection", [
                 ("Name", conn.full_name or "—"), ("Provider", conn.provider),
@@ -256,11 +299,12 @@ async def build_digest_rows():
 
 
 async def send_weekly_digest():
-    if not ALERT_EMAIL:
+    to = (await get_site_settings())["notification_email"]
+    if not to:
         return None
     rows = await build_digest_rows()
     return await send_email(
-        to=ALERT_EMAIL,
+        to=to,
         subject="Ashtor.net — weekly lead digest",
         html=_alert_html("Weekly lead digest", rows),
     )
@@ -376,14 +420,55 @@ def create_refresh_token(user_id: str) -> str:
     return pyjwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
+def _origin_allowed(origin: str) -> bool:
+    candidate = origin.strip().rstrip("/")
+    allowed = {FRONTEND_URL.rstrip("/"), "http://localhost:3000", "http://127.0.0.1:3000"}
+    if candidate in allowed:
+        return True
+    parsed = urlparse(candidate)
+    return parsed.scheme in ("http", "https") and parsed.hostname in ("localhost", "127.0.0.1")
+
+
+def _reject_cross_site_mutation(request: Request) -> None:
+    """SameSite=None cookies are sent on cross-site requests. Browsers attach
+    Origin on those POSTs; reject anything that is not this site. Clients that
+    omit Origin (the test suite, curl) are unchanged.
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+    if not _origin_allowed(origin):
+        raise HTTPException(status_code=403, detail="Cross-site request blocked")
+
+
+def _set_cookie(response: Response, key: str, value: str, *, max_age: int, path: str = "/") -> None:
+    response.set_cookie(
+        key, value, max_age=max_age, path=path,
+        httponly=True, secure=True, samesite=COOKIE_SAMESITE,
+    )
+
+
+def _clear_cookie(response: Response, key: str, *, path: str = "/") -> None:
+    # Secure and SameSite must match the cookie that was set, or the browser
+    # keeps the original (logout silently fails when SameSite=None).
+    response.delete_cookie(
+        key, path=path, httponly=True, secure=True, samesite=COOKIE_SAMESITE,
+    )
+
+
 async def get_current_admin(request: Request):
     token = request.cookies.get("access_token")
+    from_cookie = bool(token)
     if not token:
         auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:]
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    if from_cookie:
+        _reject_cross_site_mutation(request)
     try:
         payload = pyjwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         if payload.get("type") != "access":
@@ -393,12 +478,22 @@ async def get_current_admin(request: Request):
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
     user = await db.users.find_one({"email": payload.get("email")})
-    if not user or user.get("role") != "admin":
+    if not user or user.get("role") not in STAFF_ROLES:
         raise HTTPException(status_code=401, detail="Not authorized")
-    return {"email": user["email"], "name": user.get("name", "Admin"), "role": "admin"}
+    return {"id": str(user["_id"]), "email": user["email"], "name": user.get("name", "Admin"), "role": user.get("role", "admin")}
+
+
+async def get_current_owner(admin=Depends(get_current_admin)):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return admin
 
 
 async def seed_admin():
+    # Ensure the environment-configured owner account always exists and stays an
+    # admin (so it cannot be demoted into a lockout). Password is applied only
+    # when the account is created. Later changes from the Users tab must survive
+    # a restart; ADMIN_PASSWORD is not reapplied on every boot.
     existing = await db.users.find_one({"email": ADMIN_EMAIL})
     if existing is None:
         await db.users.insert_one({
@@ -408,13 +503,15 @@ async def seed_admin():
             "role": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
-    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
+        return
+    if existing.get("role") != "admin":
+        await db.users.update_one({"email": ADMIN_EMAIL}, {"$set": {"role": "admin"}})
 
 
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
+    await db.leads.create_index("access_token", sparse=True)
     await db.login_attempts.create_index("identifier")
     await db.linkedin_profiles.create_index("sub", unique=True)
     await db.github_profiles.create_index("github_id", unique=True)
@@ -486,13 +583,14 @@ def _approval_html(lead: dict, approve_url: str, reject_url: str) -> str:
 
 
 async def notify_approval_request(lead: Lead, base: str) -> None:
-    if not APPROVAL_EMAIL:
+    to = (await get_site_settings())["admin_email"]
+    if not to:
         return
     try:
         approve_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'approve'})}"
         reject_url = f"{base}/api/leads/approval?token={signed({'lead_id': lead.id, 'action': 'reject'})}"
         await send_email(
-            to=APPROVAL_EMAIL,
+            to=to,
             subject=f"Approval needed: {lead.full_name} ({lead.role})",
             html=_approval_html(lead.model_dump(), approve_url, reject_url),
         )
@@ -534,7 +632,15 @@ async def _send_rejected_email(lead: dict, base: str) -> None:
     )
 
 
-async def _apply_approval(lead: dict, action: str, base: str) -> dict:
+def _site_base() -> str:
+    """Origin of the public site. Welcome links must not use the API host."""
+    return FRONTEND_URL.rstrip("/")
+
+
+async def _apply_approval(lead: dict, action: str) -> dict:
+    # The pages a person opens live on the frontend. The API only serves
+    # /api/welcome/{token} as JSON, so emailed links must not use the API host.
+    site = _site_base()
     if action == "approve":
         access_token = secrets.token_urlsafe(24)
         await db.leads.update_one({"id": lead["id"]}, {"$set": {
@@ -543,13 +649,13 @@ async def _apply_approval(lead: dict, action: str, base: str) -> dict:
             "approved_at": datetime.now(timezone.utc).isoformat(),
         }})
         try:
-            await _send_approved_email(lead, f"{base}/welcome/{access_token}")
+            await _send_approved_email(lead, f"{site}/welcome/{access_token}")
         except Exception:
             logger.exception("approval confirmation email failed")
-        return {"approval": "approved"}
+        return {"approval": "approved", "access_token": access_token}
     await db.leads.update_one({"id": lead["id"]}, {"$set": {"approval": "rejected"}})
     try:
-        await _send_rejected_email(lead, base)
+        await _send_rejected_email(lead, site)
     except Exception:
         logger.exception("rejection email failed")
     return {"approval": "rejected"}
@@ -570,12 +676,16 @@ _APPROVAL_PAGE = (
 
 
 @api_router.get("/leads/approval")
-async def approval_via_email(token: str, request: Request):
+async def approval_via_email(token: str):
     try:
         payload = unsigned(token, max_age=14 * 86400)
     except Exception:
         raise HTTPException(400, "Invalid or expired approval link")
-    lead = await db.leads.find_one({"id": payload["lead_id"]}, {"_id": 0})
+    action = payload.get("action")
+    lead_id = payload.get("lead_id")
+    if action not in ("approve", "reject") or not lead_id:
+        raise HTTPException(400, "Invalid or expired approval link")
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
     if not lead:
         raise HTTPException(404, "Lead not found")
     name = escape(lead.get("full_name", ""))
@@ -584,7 +694,7 @@ async def approval_via_email(token: str, request: Request):
         return HTMLResponse(_APPROVAL_PAGE.format(
             color="#94A3B8", icon="&#8505;", title=f"Already {current}",
             sub=f"{name} was already {current}. No new emails were sent."))
-    result = await _apply_approval(lead, payload["action"], _request_base(request))
+    result = await _apply_approval(lead, action)
     if result["approval"] == "approved":
         return HTMLResponse(_APPROVAL_PAGE.format(
             color="#10B981", icon="&#10003;", title="Access approved",
@@ -599,7 +709,7 @@ class LeadApprovalIn(BaseModel):
 
 
 @api_router.patch("/admin/leads/{lead_id}/approval")
-async def admin_set_approval(lead_id: str, input: LeadApprovalIn, request: Request, admin=Depends(get_current_admin)):
+async def admin_set_approval(lead_id: str, input: LeadApprovalIn, admin=Depends(get_current_admin)):
     if input.action not in ("approve", "reject"):
         raise HTTPException(422, "Invalid action")
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
@@ -607,7 +717,7 @@ async def admin_set_approval(lead_id: str, input: LeadApprovalIn, request: Reque
         raise HTTPException(404, "Lead not found")
     if lead.get("approval", "pending") != "pending":
         raise HTTPException(409, "Lead already processed")
-    result = await _apply_approval(lead, input.action, _request_base(request))
+    result = await _apply_approval(lead, input.action)
     return {"id": lead_id, **result}
 
 
@@ -628,6 +738,10 @@ def _profile_payload(lead: dict) -> dict:
 
 
 async def _approved_lead_or_404(access_token: str) -> dict:
+    # tokens are secrets.token_urlsafe(24) (~32 chars). Reject anything shorter
+    # before hitting the database.
+    if not access_token or len(access_token) < 20:
+        raise HTTPException(404, "Invalid access link")
     lead = await db.leads.find_one({"access_token": access_token, "approval": "approved"}, {"_id": 0})
     if not lead:
         raise HTTPException(404, "Invalid access link")
@@ -731,7 +845,7 @@ async def email_match_report(input: MatchEmailIn, request: Request):
         html=_alert_html(
             "Informe AI Match" if es else "AI Match Report",
             rows,
-            cta_url=f"{_request_base(request)}/#contact",
+            cta_url=f"{_site_base()}/#contact",
             cta_label="Aplica ahora" if es else "Apply now",
         ),
     )
@@ -777,12 +891,13 @@ async def login(input: LoginIn, request: Request, response: Response):
             upsert=True,
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if user.get("role") not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Not authorized")
     await db.login_attempts.delete_one({"identifier": ident})
-    response.set_cookie("access_token", create_access_token(str(user["_id"]), email),
-                        httponly=True, secure=True, samesite="lax", max_age=900, path="/")
-    response.set_cookie("refresh_token", create_refresh_token(str(user["_id"]),
-                        ), httponly=True, secure=True, samesite="lax", max_age=604800, path="/")
-    return {"email": email, "name": user.get("name", "Admin"), "role": "admin"}
+    user_id = str(user["_id"])
+    _set_cookie(response, "access_token", create_access_token(user_id, email), max_age=900)
+    _set_cookie(response, "refresh_token", create_refresh_token(user_id), max_age=604800)
+    return {"id": user_id, "email": email, "name": user.get("name", "Admin"), "role": user["role"]}
 
 
 @api_router.get("/auth/me")
@@ -791,9 +906,10 @@ async def auth_me(admin=Depends(get_current_admin)):
 
 
 @api_router.post("/auth/logout")
-async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+async def logout(request: Request, response: Response):
+    _reject_cross_site_mutation(request)
+    _clear_cookie(response, "access_token")
+    _clear_cookie(response, "refresh_token")
     return {"ok": True}
 
 
@@ -815,6 +931,158 @@ async def admin_linkedin(admin=Depends(get_current_admin)):
 @api_router.get("/admin/github-profiles")
 async def admin_github(admin=Depends(get_current_admin)):
     return await db.github_profiles.find({}, {"_id": 0}).sort("verified_at", -1).to_list(1000)
+
+
+# ---------- admin user management (owner only) ----------
+
+USER_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_MAX_PASSWORD_BYTES = 72
+
+
+def _validate_new_password(password: str) -> None:
+    # bcrypt only uses the first 72 bytes and raises on longer input.
+    if len(password) < 8 or len(password.encode("utf-8")) > _MAX_PASSWORD_BYTES:
+        raise HTTPException(422, "Password must be between 8 and 72 bytes")
+
+
+def _public_user(u: dict) -> dict:
+    return {
+        "id": str(u["_id"]),
+        "email": u["email"],
+        "name": u.get("name", ""),
+        "role": u.get("role", "admin"),
+        "created_at": u.get("created_at"),
+    }
+
+
+class UserCreateIn(BaseModel):
+    email: str
+    password: str
+    name: str = "Admin"
+    role: str = "admin"
+
+
+class UserUpdateIn(BaseModel):
+    email: str = None
+    password: str = None
+    name: str = None
+    role: str = None
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(owner=Depends(get_current_owner)):
+    users = await db.users.find({}).sort("created_at", 1).to_list(1000)
+    return [_public_user(u) for u in users]
+
+
+@api_router.post("/admin/users")
+async def admin_create_user(input: UserCreateIn, owner=Depends(get_current_owner)):
+    email = input.email.lower().strip()
+    if len(email) > 254 or not USER_EMAIL_RE.match(email):
+        raise HTTPException(422, "Invalid email")
+    _validate_new_password(input.password)
+    if input.role not in STAFF_ROLES:
+        raise HTTPException(422, "Invalid role")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(409, "A user with that email already exists")
+    doc = {
+        "email": email,
+        "password_hash": hash_password(input.password),
+        "name": (input.name or "").strip() or "Admin",
+        "role": input.role,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    return _public_user(doc)
+
+
+def _parse_object_id(user_id: str) -> ObjectId:
+    try:
+        return ObjectId(user_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(404, "User not found")
+
+
+@api_router.patch("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, input: UserUpdateIn, owner=Depends(get_current_owner)):
+    oid = _parse_object_id(user_id)
+    user = await db.users.find_one({"_id": oid})
+    if not user:
+        raise HTTPException(404, "User not found")
+    updates = {}
+    if input.email is not None:
+        email = input.email.lower().strip()
+        if len(email) > 254 or not USER_EMAIL_RE.match(email):
+            raise HTTPException(422, "Invalid email")
+        if await db.users.find_one({"email": email, "_id": {"$ne": oid}}):
+            raise HTTPException(409, "A user with that email already exists")
+        updates["email"] = email
+    if input.name is not None:
+        updates["name"] = input.name.strip() or "Admin"
+    if input.role is not None:
+        if input.role not in STAFF_ROLES:
+            raise HTTPException(422, "Invalid role")
+        if user.get("role") == "admin" and input.role != "admin":
+            if await db.users.count_documents({"role": "admin"}) <= 1:
+                raise HTTPException(409, "At least one admin must remain")
+        updates["role"] = input.role
+    if input.password is not None:
+        _validate_new_password(input.password)
+        updates["password_hash"] = hash_password(input.password)
+    if updates:
+        await db.users.update_one({"_id": oid}, {"$set": updates})
+    return _public_user(await db.users.find_one({"_id": oid}))
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, owner=Depends(get_current_owner)):
+    oid = _parse_object_id(user_id)
+    user = await db.users.find_one({"_id": oid})
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user["email"] == owner["email"]:
+        raise HTTPException(409, "You cannot delete your own account")
+    if user.get("role") == "admin" and await db.users.count_documents({"role": "admin"}) <= 1:
+        raise HTTPException(409, "At least one admin must remain")
+    await db.users.delete_one({"_id": oid})
+    return {"ok": True}
+
+
+# ---------- site settings (editable emails) ----------
+
+SETTINGS_KEYS = ("admin_email", "contact_email", "notification_email")
+
+
+class SettingsUpdateIn(BaseModel):
+    admin_email: str = None
+    contact_email: str = None
+    notification_email: str = None
+
+
+@api_router.get("/settings/public")
+async def public_settings():
+    return {"contact_email": (await get_site_settings())["contact_email"]}
+
+
+@api_router.get("/admin/settings")
+async def admin_get_settings(owner=Depends(get_current_owner)):
+    return await get_site_settings()
+
+
+@api_router.patch("/admin/settings")
+async def admin_update_settings(input: SettingsUpdateIn, owner=Depends(get_current_owner)):
+    updates = {}
+    for key in SETTINGS_KEYS:
+        val = getattr(input, key)
+        if val is not None:
+            val = val.strip().lower()
+            if val and (len(val) > 254 or not USER_EMAIL_RE.match(val)):
+                raise HTTPException(422, f"Invalid email for {key}")
+            updates[key] = val
+    if updates:
+        await db.settings.update_one({"key": "site"}, {"$set": updates}, upsert=True)
+    return await get_site_settings()
 
 
 @api_router.post("/admin/digest/send")
@@ -916,8 +1184,8 @@ async def linkedin_start():
         "nonce": nonce,
     })
     response = RedirectResponse(f"{LINKEDIN_AUTH}?{query}", status_code=302)
-    response.set_cookie("linkedin_oauth", signed({"state": state, "nonce": nonce}),
-                        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/linkedin")
+    _set_cookie(response, "linkedin_oauth", signed({"state": state, "nonce": nonce}),
+                max_age=600, path="/api/auth/linkedin")
     return response
 
 
@@ -992,9 +1260,8 @@ async def linkedin_callback(request: Request, code: str = None, state: str = Non
         upsert=True,
     )
     response = RedirectResponse(f"{FRONTEND_URL}/?linkedin=connected", status_code=302)
-    response.delete_cookie("linkedin_oauth", path="/api/auth/linkedin")
-    response.set_cookie("app_session", signed({"sub": profile["sub"]}),
-                        httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
+    _clear_cookie(response, "linkedin_oauth", path="/api/auth/linkedin")
+    _set_cookie(response, "app_session", signed({"sub": profile["sub"]}), max_age=86400)
     return response
 
 
@@ -1013,7 +1280,7 @@ async def linkedin_me(request: Request):
 @api_router.post("/auth/linkedin/logout")
 async def linkedin_logout():
     response = Response(content='{"ok": true}', media_type="application/json")
-    response.delete_cookie("app_session", path="/")
+    _clear_cookie(response, "app_session")
     return response
 
 
@@ -1023,9 +1290,25 @@ def github_configured() -> bool:
     return bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
 
 
+_HOST_RE = re.compile(r"^[A-Za-z0-9.\-:\[\]]+$")
+
+
 def _request_base(request: Request) -> str:
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    """Public origin of this API.
+
+    Prefer BACKEND_URL. Otherwise use the Host header the proxy assigned.
+    Do not read X-Forwarded-Host: a lead submission can set it and the approval
+    email would hand the signed token to that host.
+    """
+    if BACKEND_URL:
+        return BACKEND_URL
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http")
+    proto = proto.split(",")[0].strip().lower()
+    if proto not in ("http", "https"):
+        proto = "http"
+    host = (request.headers.get("host") or request.url.netloc or "").split(",")[0].strip()
+    if not _HOST_RE.fullmatch(host):
+        host = request.url.netloc
     return f"{proto}://{host}"
 
 
@@ -1071,8 +1354,8 @@ async def github_start(request: Request):
         "state": state,
     })
     response = RedirectResponse(f"{GITHUB_AUTH}?{query}", status_code=302)
-    response.set_cookie("github_oauth", signed({"state": state, "redirect_uri": redirect_uri}),
-                        max_age=600, httponly=True, secure=True, samesite="lax", path="/api/auth/github")
+    _set_cookie(response, "github_oauth", signed({"state": state, "redirect_uri": redirect_uri}),
+                max_age=600, path="/api/auth/github")
     return response
 
 
@@ -1109,9 +1392,8 @@ async def github_callback(request: Request, code: str = None, state: str = None,
         upsert=True,
     )
     response = RedirectResponse(f"{_request_base(request)}/?github=connected", status_code=302)
-    response.delete_cookie("github_oauth", path="/api/auth/github")
-    response.set_cookie("github_session", signed({"gid": github_id}),
-                        httponly=True, secure=True, samesite="lax", max_age=86400, path="/")
+    _clear_cookie(response, "github_oauth", path="/api/auth/github")
+    _set_cookie(response, "github_session", signed({"gid": github_id}), max_age=86400)
     return response
 
 
@@ -1130,7 +1412,7 @@ async def github_me(request: Request):
 @api_router.post("/auth/github/logout")
 async def github_logout():
     response = Response(content='{"ok": true}', media_type="application/json")
-    response.delete_cookie("github_session", path="/")
+    _clear_cookie(response, "github_session")
     return response
 
 
@@ -1395,6 +1677,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()",
+    "Content-Security-Policy": (
+        "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    ),
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+}
+
+
+@app.middleware("http")
+async def apply_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
 
 logging.basicConfig(
     level=logging.INFO,

@@ -1,15 +1,25 @@
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { LogoBox } from '@/components/Logo';
 import { useLanguage } from '@/i18n';
 
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const LINK_PATHS = ['/talent-portal', '/client-hub', '/security-charter', '/terms', '/privacy'];
 const LINK_IDS = ['talent-portal', 'client-hub', 'security-charter', 'terms', 'privacy'];
 
 export default function Footer() {
   const { t } = useLanguage();
   const f = t.footer;
+  const [contactEmail, setContactEmail] = useState('ashtornet@gmail.com');
+
+  useEffect(() => {
+    axios.get(`${API}/settings/public`)
+      .then((r) => { if (r.data?.contact_email) setContactEmail(r.data.contact_email); })
+      .catch(() => {});
+  }, []);
 
   return (
     <footer className="relative border-t border-white/[0.07] bg-[#0B0E14] overflow-hidden" data-testid="main-footer">
@@ -33,12 +43,12 @@ export default function Footer() {
             </div>
             <div>
               <a
-                href="mailto:info@ashtor.net"
+                href={`mailto:${contactEmail}`}
                 data-testid="footer-contact-email"
                 className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-emerald-300 transition-colors duration-300"
               >
                 <Mail size={14} className="text-emerald-400" />
-                info@ashtor.net
+                {contactEmail}
               </a>
             </div>
           </div>

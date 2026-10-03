@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Terminal, LogOut, Users, Linkedin, Github, BadgeCheck, Loader2, Mail } from 'lucide-react';
+import { Terminal, LogOut, Users, Loader2, Mail, ClipboardCheck, UserCog, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n';
 import { usePageMeta } from '@/lib/seo';
 import { AdminLogin } from '@/pages/admin/AdminLogin';
-import { LeadsTable, ConnectionsTable, VerifiedTable, GithubTable } from '@/pages/admin/AdminTables';
+import { LeadsTable, ApprovalsPanel, UsersPanel, SettingsPanel } from '@/pages/admin/AdminTables';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const creds = { withCredentials: true };
@@ -19,7 +19,7 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState('leads');
+  const [tab, setTab] = useState('approvals');
   const [statusFilter, setStatusFilter] = useState('all');
   const [noteOpen, setNoteOpen] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -28,9 +28,8 @@ export default function Admin() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [digestSending, setDigestSending] = useState(false);
   const [leads, setLeads] = useState([]);
-  const [conns, setConns] = useState([]);
-  const [verified, setVerified] = useState([]);
-  const [gh, setGh] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [settings, setSettings] = useState(null);
 
   const statusLabel = {
     new: a.statusNew,
@@ -54,21 +53,84 @@ export default function Admin() {
     if (!user) return;
     (async () => {
       try {
-        const [l, c, v, g] = await Promise.all([
-          axios.get(`${API}/admin/leads`, creds),
-          axios.get(`${API}/admin/social-connections`, creds),
-          axios.get(`${API}/admin/linkedin-profiles`, creds),
-          axios.get(`${API}/admin/github-profiles`, creds),
-        ]);
+        const l = await axios.get(`${API}/admin/leads`, creds);
         setLeads(l.data);
-        setConns(c.data);
-        setVerified(v.data);
-        setGh(g.data);
       } catch (err) {
         console.error('Admin: failed to load dashboard data', err);
       }
+      if (user.role === 'admin') {
+        try {
+          const [u, s] = await Promise.all([
+            axios.get(`${API}/admin/users`, creds),
+            axios.get(`${API}/admin/settings`, creds),
+          ]);
+          setUsers(u.data);
+          setSettings(s.data);
+        } catch (err) {
+          console.error('Admin: failed to load users/settings', err);
+        }
+      }
     })();
   }, [user]);
+
+  const loadUsers = async () => {
+    try {
+      const r = await axios.get(`${API}/admin/users`, creds);
+      setUsers(r.data);
+    } catch (err) {
+      console.error('Admin: failed to load users', err);
+    }
+  };
+
+  const createUser = async (form) => {
+    try {
+      await axios.post(`${API}/admin/users`, form, creds);
+      toast.success(a.usCreated);
+      await loadUsers();
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usCreateFail);
+      return false;
+    }
+  };
+
+  const deleteUser = async (id) => {
+    if (!window.confirm(a.usDeleteConfirm)) return;
+    try {
+      await axios.delete(`${API}/admin/users/${id}`, creds);
+      toast.success(a.usDeleted);
+      await loadUsers();
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usDeleteFail);
+    }
+  };
+
+  const changeUserPassword = async (id, password) => {
+    try {
+      await axios.patch(`${API}/admin/users/${id}`, { password }, creds);
+      toast.success(a.usPwUpdated);
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.usPwFail);
+      return false;
+    }
+  };
+
+  const saveSettings = async (form) => {
+    try {
+      const r = await axios.patch(`${API}/admin/settings`, form, creds);
+      setSettings(r.data);
+      toast.success(a.setSaved);
+      return true;
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : a.setFail);
+      return false;
+    }
+  };
 
   const login = async (e) => {
     e.preventDefault();
@@ -105,7 +167,7 @@ export default function Admin() {
     if (action === 'reject' && !window.confirm(a.rejectConfirm)) return;
     try {
       const r = await axios.patch(`${API}/admin/leads/${leadId}/approval`, { action }, creds);
-      setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, approval: r.data.approval } : l)));
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, approval: r.data.approval, access_token: r.data.access_token || l.access_token } : l)));
       toast.success(action === 'approve' ? a.approveOk : a.rejectOk);
     } catch (err) {
       console.error('Admin: approval update failed', err);
@@ -252,11 +314,14 @@ export default function Admin() {
     );
   }
 
+  const pendingCount = leads.filter((l) => (l.approval || 'pending') === 'pending').length;
   const tabs = [
+    { key: 'approvals', label: a.tabApprovals, Icon: ClipboardCheck, count: pendingCount },
     { key: 'leads', label: a.tabLeads, Icon: Users, count: leads.length },
-    { key: 'linkedin', label: a.tabLinkedin, Icon: Linkedin, count: conns.length },
-    { key: 'verified', label: a.tabVerified, Icon: BadgeCheck, count: verified.length },
-    { key: 'github', label: a.tabGithub, Icon: Github, count: gh.length },
+    ...(user.role === 'admin' ? [
+      { key: 'users', label: a.tabUsers, Icon: UserCog, count: users.length },
+      { key: 'settings', label: a.tabSettings, Icon: SlidersHorizontal, count: null },
+    ] : []),
   ];
 
   return (
@@ -307,7 +372,7 @@ export default function Admin() {
             >
               <div className="flex items-center justify-between mb-3">
                 <Icon size={17} className={tab === key ? 'text-emerald-400' : 'text-slate-500'} />
-                <span className="font-display text-2xl font-bold">{count}</span>
+                {typeof count === 'number' && <span className="font-display text-2xl font-bold">{count}</span>}
               </div>
               <p className="font-mono-tech text-[10px] tracking-[0.2em] uppercase text-slate-400">{label}</p>
             </button>
@@ -315,6 +380,12 @@ export default function Admin() {
         </div>
 
         <div className="rounded-2xl border border-white/[0.07] bg-[#111620]/70 overflow-hidden">
+          {tab === 'approvals' && (
+            <ApprovalsPanel a={a} leads={leads} setApproval={setApproval} fmt={fmt} />
+          )}
+          {tab === 'users' && (
+            <UsersPanel a={a} users={users} currentUser={user} onCreate={createUser} onDelete={deleteUser} onChangePassword={changeUserPassword} fmt={fmt} />
+          )}
           {tab === 'leads' && (
             <LeadsTable
               a={a}
@@ -340,9 +411,9 @@ export default function Admin() {
               fmt={fmt}
             />
           )}
-          {tab === 'linkedin' && <ConnectionsTable a={a} conns={conns} fmt={fmt} />}
-          {tab === 'verified' && <VerifiedTable a={a} verified={verified} fmt={fmt} />}
-          {tab === 'github' && <GithubTable a={a} gh={gh} fmt={fmt} />}
+          {tab === 'settings' && (
+            <SettingsPanel a={a} settings={settings} onSave={saveSettings} />
+          )}
         </div>
       </div>
     </div>
